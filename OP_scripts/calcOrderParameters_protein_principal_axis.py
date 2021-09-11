@@ -332,7 +332,7 @@ if __name__ == "__main__":
                         f.write( "{:8s} {:> 5d} {:> 5d} {:5s} {:5s} {:5s} {:> 5d} {:> 5d} \n".format(str(atom1[1])+str(atom1[0])+"_"+str(chain), chain, atom1[0], atom1[1], atom1[2], atom2[2], atom1[3], atom2[3]))
           
                 if opts.selection=="average":
-                    if chain==1:    
+                    if chain==0:    
                         with open("Headgroup_Glycerol_OPs.def","a") as f:
                             f.write( "{:8s} {:> 5d} {:> 5d} {:5s} {:5s} {:5s} {:> 5d} {:> 5d} \n".format(str(atom1[1])+str(atom1[0])+"_"+str(chain), chain, atom1[0], atom1[1], atom1[2], atom2[2], atom1[3], atom2[3]))
           
