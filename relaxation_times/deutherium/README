@@ -1,6 +1,6 @@
-Jupyter notebook called RelaxationTimes.ipynb contains the used settings
+Jupyter notebook called RelaxationTimes.ipynb contains the user settings
 
-relaxation_times.py contains all the analysis code
+relaxation_times.py contains all the analysis code and is called from the jupyter
 
 Testing and debugging is probably needed
 
