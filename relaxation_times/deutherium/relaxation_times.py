@@ -2,16 +2,25 @@ import sys
 import numpy as np
 from scipy import optimize
 import matplotlib.pyplot as plt
+from datetime import date
+
+gammaD=41.695*10**6; #r*s^(-1)*T^(-1)
+gammaH=267.513*10**6;
+gammaC=67.262*10**6;
+gammaN=-27.166*10**6;
+
 
 
 class GetRelaxationData():
-    def __init__(self,OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_data):
+    def __init__(self,OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_data,nuclei,output_name):
         self.OP=OP
         self.smallest_corr_time=smallest_corr_time
         self.biggest_corr_time=biggest_corr_time
         self.N_exp_to_fit=N_exp_to_fit
         self.magnetic_field=magnetic_field
         self.input_data=input_data
+        self.nuclei=nuclei
+        self.output_name=output_name
         
         self.org_corrF, self.times_out=self.read_data()
         
@@ -20,9 +29,15 @@ class GetRelaxationData():
         self.org_corrF=self.org_corrF[0:analyze_until]
         self.times_out=self.times_out[0:analyze_until]
         
-        Teff, tau_eff_area, R1, R2, rec_corrF = self.calc_relax_time()
+        Teff, tau_eff_area, R1, R2, NOE, rec_corrF = self.calc_relax_time()
         self.plot_fit(rec_corrF)
-        print("R1: {} R2: {}".format(R1, R2))
+        print("R1: {} R2: {} NOE: {}".format(R1, R2, NOE))
+
+        with open(output_name,"a") as f:
+            f.write("{:10} {:10.4f} {:10.4f} {:10.4f}".format(input_data, R1, R2, NOE))
+        
+    
+
 
 
     def read_data(self):
@@ -89,40 +104,20 @@ class GetRelaxationData():
             tau_eff_area = sum(NcorrF[0:n]) * dt * 0.001 * 10 ** (-9);
             conv = 0
 
-        # Constants for calculating R1
-
-        wc = 2 * np.pi * 125.76 * 10 ** 6;
-        wh = wc / 0.25;
-        omega = 2 * np.pi * 6.536 * 10 ** 6 * self.magnetic_field; #Larmour frequency =deuterium gyromagtic ratio * magnatic field
+   
 
         # changin the unit of time permanently
         Ctimes = Ctimes * 0.001 * 10 ** (-9);
 
-        J0 = 0
-        J1 = 0
-        J2 = 0
-        Jw1 = 0
+        #Calculate the relaxation times for chosen nuclei
+        R1, R2, NOE = choose_nuclei[self.nuclei](self.magnetic_field,Coeffs,Ctimes,self.OP) 
 
-        for i in range(0, m):
-            w=0
 
-            J0 = J0 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
-
-            w = omega
-            J1 = J1 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
-
-            w = 2* omega
-            J2 = J2 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
-
-        # R1=(2.1*10**9)*(J0+3*J1+6*J2)
-        # note! R1's are additive. Nh from the Ferreira2015 paper correctly omitted here
-        R1 = (167000  * np.pi) ** 3 / 40.0 * (1 - self.OP ** 2) * (0 * J0 + 2 * J1 + 8 * J2)
-        R2 = (167000  * np.pi) ** 3 / 40.0 * (1 - self.OP ** 2) * (3 * J0 + 5 * J1 + 2 * J2)
-    
+        
         #get the reconstucted correlation function
         rec_corrF=Cexp_mat.dot(Coeffs)
 
-        return Teff, tau_eff_area, R1, R2, rec_corrF
+        return Teff, tau_eff_area, R1, R2, NOE, rec_corrF
 
 
     def plot_fit(self, reconstruction):
@@ -137,3 +132,111 @@ class GetRelaxationData():
         plt.title(self.input_data)
         plt.legend()
         plt.show()
+
+
+def get_relaxation_D(magnetic_field,Coeffs,Ctimes,OP):
+    omega = gammaD * magnetic_field
+    
+    #initiate spectral densities
+    J0 = 0
+    J1 = 0
+    J2 = 0
+    
+    m = len(Ctimes)
+    for i in range(0, m):
+        w=0
+        J0 = J0 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
+
+        w = omega
+        J1 = J1 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
+
+        w = 2* omega
+        J2 = J2 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
+
+        # R1=(2.1*10**9)*(J0+3*J1+6*J2)
+    # note! R1's are additive. Nh from the Ferreira2015 paper correctly omitted here
+    xksi=167000 # quadrupolar coupling constant [Hz]
+    R1 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (0 * J0 + 2 * J1 + 8 * J2)
+    R2 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (3 * J0 + 5 * J1 + 2 * J2)
+
+    return R1, R2, 0
+
+
+def get_relaxation_C(magnetic_field,Coeffs,Ctimes,OP):
+    omega = gammaD * magnetic_field
+    
+    wc = 2 * np.pi * 125.76 * 10 ** 6;
+    wh = wc / 0.25;
+        
+    #initiate spectral densities
+    J0 = 0
+    J1 = 0
+    J2 = 0
+    Jw1 = 0
+
+    m = len(Ctimes)
+    for i in range(0, m):
+        w=0
+        J0 = J0 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
+
+        w = omega
+        J1 = J1 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
+
+        w = 2* omega
+        J2 = J2 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
+
+        # R1=(2.1*10**9)*(J0+3*J1+6*J2)
+    # note! R1's are additive. Nh from the Ferreira2015 paper correctly omitted here
+    xksi=167000 # quadrupolar coupling constant [Hz]
+    R1 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (0 * J0 + 2 * J1 + 8 * J2)
+    R2 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (3 * J0 + 5 * J1 + 2 * J2)
+
+    return R1, R2, None
+
+
+def get_relaxation_N(magnetic_field,Coeffs,Ctimes,OP):
+    omega = gammaD * magnetic_field
+    
+    #initiate spectral densities
+    J0 = 0
+    J1 = 0
+    J2 = 0
+
+    m = len(Ctimes)
+    for i in range(0, m):
+        w=0
+        J0 = J0 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
+
+        w = omega
+        J1 = J1 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
+
+        w = 2* omega
+        J2 = J2 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
+
+        # R1=(2.1*10**9)*(J0+3*J1+6*J2)
+    # note! R1's are additive. Nh from the Ferreira2015 paper correctly omitted here
+    xksi=167000 # quadrupolar coupling constant [Hz]
+    R1 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (0 * J0 + 2 * J1 + 8 * J2)
+    R2 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (3 * J0 + 5 * J1 + 2 * J2)
+
+    return R1, R2, 0
+
+choose_nuclei = {
+    "13C": get_relaxation_C,
+    "2H": get_relaxation_D,
+    "15N": get_relaxation_N
+}
+
+
+def initilize_output(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_corr_file,nuclei,output_name,author_name):
+    with open(output_name,"w") as f:
+        f.write("#Relaxation time analysis from MD simulations, analysed {} by {}".format(date.today(),author_name))
+        f.write("\n \n#Nuclei: {} \n".format(nuclei))
+        f.write("#Magnetic field: {} T \n".format(magnetic_field))
+        f.write("#Order parameter: {} \n".format(OP))
+        f.write("#Fraction of autocorrelation function analysed: {} \n".format(analyze))
+        f.write("\n#Autocorrelation function fitted by {} exponential functions \n".format(N_exp_to_fit))
+        f.write("#Timescales ranging from 10^{} ps to 10^{} ps \n".format(smallest_corr_time,biggest_corr_time))
+        f.write("\n# file                   R1         R2          NOE \n".format(smallest_corr_time,biggest_corr_time))
+
+
