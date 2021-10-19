@@ -1,0 +1,7 @@
+Jupyter notebook called RelaxationTimes.ipynb contains the user settings
+
+relaxation_times.py contains all the analysis code and is called from the jupyter
+
+Testing and debugging is probably needed
+
+At the moment works only for deutherium, should be easy to extend for othe nuclei
