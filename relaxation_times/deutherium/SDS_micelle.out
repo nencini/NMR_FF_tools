@@ -1,0 +1,12 @@
+#Relaxation time analysis from MD simulations, analysed 2021-10-19 by Ricky Nencini
+ 
+#Nuclei: 2H 
+#Magnetic field: 2.35 T 
+#Order parameter: 0 
+#Fraction of autocorrelation function analysed: 0.1 
+
+#Autocorrelation function fitted by 100 exponential functions 
+#Timescales ranging from 10^0 ps to 10^6 ps 
+
+# file                   R1         R2          NOE 
+cor_times/alphaCF.xvg    25.0154    25.4598     0.0000

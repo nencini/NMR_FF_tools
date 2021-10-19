@@ -153,8 +153,6 @@ def get_relaxation_D(magnetic_field,Coeffs,Ctimes,OP):
         w = 2* omega
         J2 = J2 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
 
-        # R1=(2.1*10**9)*(J0+3*J1+6*J2)
-    # note! R1's are additive. Nh from the Ferreira2015 paper correctly omitted here
     xksi=167000 # quadrupolar coupling constant [Hz]
     R1 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (0 * J0 + 2 * J1 + 8 * J2)
     R2 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (3 * J0 + 5 * J1 + 2 * J2)
@@ -165,8 +163,8 @@ def get_relaxation_D(magnetic_field,Coeffs,Ctimes,OP):
 def get_relaxation_C(magnetic_field,Coeffs,Ctimes,OP):
     omega = gammaD * magnetic_field
     
-    wc = 2 * np.pi * 125.76 * 10 ** 6;
-    wh = wc / 0.25;
+    wc = gammaC * magnetic_field;
+    wh = gammaH * magnetic_field;
         
     #initiate spectral densities
     J0 = 0
@@ -176,56 +174,62 @@ def get_relaxation_C(magnetic_field,Coeffs,Ctimes,OP):
 
     m = len(Ctimes)
     for i in range(0, m):
-        w=0
+        w = wh - wc
         J0 = J0 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
 
-        w = omega
+        w = wc
         J1 = J1 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
 
-        w = 2* omega
+        w = wc + wh
         J2 = J2 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
 
-        # R1=(2.1*10**9)*(J0+3*J1+6*J2)
     # note! R1's are additive. Nh from the Ferreira2015 paper correctly omitted here
-    xksi=167000 # quadrupolar coupling constant [Hz]
-    R1 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (0 * J0 + 2 * J1 + 8 * J2)
-    R2 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (3 * J0 + 5 * J1 + 2 * J2)
+    R1 = (22000 * 2 * np.pi) ** 2 / 20.0 * (1 - OP ** 2) * (J0 + 3 * J1 + 6 * J2)
 
-    return R1, R2, None
+
+    return R1, 0, 0
 
 
 def get_relaxation_N(magnetic_field,Coeffs,Ctimes,OP):
-    omega = gammaD * magnetic_field
+    wh = gammaH * magnetic_field
+    wn = gammaN * magnetic_field
     
     #initiate spectral densities
     J0 = 0
-    J1 = 0
-    J2 = 0
+    JhMn = 0
+    JhPn = 0
+    Jh = 0
+    Jn = 0
 
     m = len(Ctimes)
     for i in range(0, m):
-        w=0
+        w = 0
         J0 = J0 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
+        
+        w = wh-wn;
+        JhMn = JhMn + 2 * Coeffs[i]* Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
 
-        w = omega
-        J1 = J1 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
+        w = wn;
+        Jn = Jn + 2 * Coeffs[i]* Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
+        
+        w = wh;
+        Jh= Jh + 2 * Coeffs[i]* Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
 
-        w = 2* omega
-        J2 = J2 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
+        w = wn+wh;
+        JhPn = JhPn + 2 * Coeffs[i]* Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
 
-        # R1=(2.1*10**9)*(J0+3*J1+6*J2)
-    # note! R1's are additive. Nh from the Ferreira2015 paper correctly omitted here
-    xksi=167000 # quadrupolar coupling constant [Hz]
-    R1 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (0 * J0 + 2 * J1 + 8 * J2)
-    R2 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (3 * J0 + 5 * J1 + 2 * J2)
 
-    return R1, R2, 0
+    mu = 4 * np.pi * 10**(-7) #magnetic constant of vacuum permeability
+    h_planck = 1.055 * 10**(-34); #reduced Planck constant
+    rN = 0.101 * 10**(-9); # average cubic length of N-H bond
+    d = (mu * gammaN * gammaH * h_planck) / (4 * np.pi * rN**3); # dipolar coupling constant
 
-choose_nuclei = {
-    "13C": get_relaxation_C,
-    "2H": get_relaxation_D,
-    "15N": get_relaxation_N
-}
+    R1 = (d**2 / 20) * (1 * JhMn + 3 * Jn + 6 * JhPn) + (2 * np.pi * wn * 160 * 10**(-6))**2 / 15 * Jn;
+    R2 = 0.5 * (d**2 / 20) * (4 * J0 + 3 * Jn + 1 * JhMn + 6 * Jh + 6 * JhPn) + (2 * np.pi * wn * 160 * 10**(-6))**2 / 90 * (4 * J0 + 3 * Jn);
+    NOE = 1 + (d**2 / 20) * (6 * JhPn - 1 * JhMn) * gammaH / (gammaN * R1);
+
+    return R1, R2, NOE
+
 
 
 def initilize_output(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_corr_file,nuclei,output_name,author_name):
@@ -239,4 +243,8 @@ def initilize_output(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,anal
         f.write("#Timescales ranging from 10^{} ps to 10^{} ps \n".format(smallest_corr_time,biggest_corr_time))
         f.write("\n# file                   R1         R2          NOE \n".format(smallest_corr_time,biggest_corr_time))
 
-
+choose_nuclei = {
+    "13C": get_relaxation_C,
+    "2H": get_relaxation_D,
+    "15N": get_relaxation_N
+}
