@@ -29,8 +29,8 @@ class GetRelaxationData():
         self.org_corrF=self.org_corrF[0:analyze_until]
         self.times_out=self.times_out[0:analyze_until]
         
-        Teff, tau_eff_area, R1, R2, NOE, rec_corrF = self.calc_relax_time()
-        self.plot_fit(rec_corrF)
+        Teff, tau_eff_area, R1, R2, NOE = self.calc_relax_time()
+        
         print("R1: {} R2: {} NOE: {}".format(R1, R2, NOE))
 
         with open(output_name,"a") as f:
@@ -116,8 +116,10 @@ class GetRelaxationData():
         
         #get the reconstucted correlation function
         rec_corrF=Cexp_mat.dot(Coeffs)
+        self.plot_fit(rec_corrF)
+        self.plot_exp_hist(Ctimes,Coeffs)
 
-        return Teff, tau_eff_area, R1, R2, NOE, rec_corrF
+        return Teff, tau_eff_area, R1, R2, NOE
 
 
     def plot_fit(self, reconstruction):
@@ -133,6 +135,13 @@ class GetRelaxationData():
         plt.legend()
         plt.show()
 
+
+    def plot_exp_hist(self,Ctimes,Coeffs):
+        plt.figure(figsize=(15, 6))
+        plt.rcParams.update({'font.size': 20})        
+        plt.plot(Ctimes,Coeffs)
+        plt.xlabel("Time decay [s]")
+        plt.ylabel("Coefficient")
 
 def get_relaxation_D(magnetic_field,Coeffs,Ctimes,OP):
     omega = gammaD * magnetic_field
