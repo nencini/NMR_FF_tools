@@ -1,0 +1,14 @@
+Jupyter notebook called RelaxationTimes.ipynb contains the user settings
+
+relaxation_times.py contains all the analysis code and is called from the jupyter
+
+Testing and debugging is probably needed
+
+Works for 2H, 13C and 15N nuclei.
+
+No corrections to water viscosity are present.
+No plateau forcing.
+
+
+
+"SDS_micelle.out" is an example of the output file 
