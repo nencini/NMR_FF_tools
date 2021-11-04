@@ -55,9 +55,12 @@ class GetRelaxationData():
                 continue    
             if 'label' in line:
                 continue
+            if line is "":
+                continue
             parts = line.split()
-            data_F.append(float(parts[1]))
-            data_times.append(float(parts[0]))
+            if np.shape(parts)[0]==2:
+                data_F.append(float(parts[1]))
+                data_times.append(float(parts[0]))
 
 
         data_Fout = np.array(data_F)
