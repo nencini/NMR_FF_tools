@@ -111,6 +111,9 @@ class GetRelaxationData():
 
         # changin the unit of time permanently
         Ctimes = Ctimes * 0.001 * 10 ** (-9);
+        
+        
+        self.Coeffs=Coeffs
 
         #Calculate the relaxation times for chosen nuclei
         R1, R2, NOE = choose_nuclei[self.nuclei](self.magnetic_field,Coeffs,Ctimes,self.OP) 
