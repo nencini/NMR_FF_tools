@@ -111,8 +111,6 @@ class GetRelaxationData():
 
         # changin the unit of time permanently
         Ctimes = Ctimes * 0.001 * 10 ** (-9);
-        
-        
         self.Coeffs=Coeffs
 
         #Calculate the relaxation times for chosen nuclei
@@ -206,8 +204,10 @@ def get_relaxation_C(magnetic_field,Coeffs,Ctimes,OP):
 
 
 def get_relaxation_N(magnetic_field,Coeffs,Ctimes,OP):
-    wh = gammaH * magnetic_field
-    wn = gammaN * magnetic_field
+    
+    
+    wh = gammaH * magnetic_field 
+    wn = gammaN * magnetic_field 
     
     #initiate spectral densities
     J0 = 0
@@ -219,6 +219,7 @@ def get_relaxation_N(magnetic_field,Coeffs,Ctimes,OP):
     m = len(Ctimes)
     for i in range(0, m):
         w = 0
+      
         J0 = J0 + 2 * Coeffs[i] * Ctimes[i] / (1.0 + w * w * Ctimes[i] * Ctimes[i])
         
         w = wh-wn;
@@ -237,15 +238,27 @@ def get_relaxation_N(magnetic_field,Coeffs,Ctimes,OP):
     mu = 4 * np.pi * 10**(-7) #magnetic constant of vacuum permeability
     h_planck = 1.055 * 10**(-34); #reduced Planck constant
     rN = 0.101 * 10**(-9); # average cubic length of N-H bond
-    d = (mu * gammaN * gammaH * h_planck) / (4 * np.pi * rN**3); # dipolar coupling constant
+    d = 1 * (mu * gammaN * gammaH * h_planck) / (4 * np.pi * rN**3); # dipolar coupling constant
 
-    R1 = (d**2 / 20) * (1 * JhMn + 3 * Jn + 6 * JhPn) + (2 * np.pi * wn * 160 * 10**(-6))**2 / 15 * Jn;
-    R2 = 0.5 * (d**2 / 20) * (4 * J0 + 3 * Jn + 1 * JhMn + 6 * Jh + 6 * JhPn) + (2 * np.pi * wn * 160 * 10**(-6))**2 / 90 * (4 * J0 + 3 * Jn);
+    #units were corrected by S.Ollila and E.Mantzari, removed 2*pi
+    R1 = (d**2 / 20) * (1 * JhMn + 3 * Jn + 6 * JhPn) + Jn * (wn * 160 * 10**(-6))**2 / 15   ; 
+    R2 = 0.5 * (d**2 / 20) * (4 * J0 + 3 * Jn + 1 * JhMn + 6 * Jh + 6 * JhPn) + (wn * 160 * 10**(-6))**2 / 90 * (4 * J0 + 3 * Jn);
     NOE = 1 + (d**2 / 20) * (6 * JhPn - 1 * JhMn) * gammaH / (gammaN * R1);
 
+
+    print("T1: {}, T2: {}, NOE: {}".format(1/R1, 1/R2, NOE))
+    
+    with open("T1_python_d.txt", "a" ) as f : 
+         f.write("{} \n".format(1/R1))
+           
+    with open("T2_python_d.txt", "a" ) as f : 
+         f.write("{} \n".format(1/R2))
+           
+    with open("NOE_python_d.txt", "a" ) as f : 
+         f.write("{} \n".format(NOE))
+           
     return R1, R2, NOE
-
-
+    
 
 def initilize_output(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_corr_file,nuclei,output_name,author_name):
     with open(output_name,"w") as f:
@@ -257,7 +270,8 @@ def initilize_output(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,anal
         f.write("\n#Autocorrelation function fitted by {} exponential functions \n".format(N_exp_to_fit))
         f.write("#Timescales ranging from 10^{} ps to 10^{} ps \n".format(smallest_corr_time,biggest_corr_time))
         f.write("\n# file                   R1         R2          NOE \n".format(smallest_corr_time,biggest_corr_time))
-
+        
+         
 choose_nuclei = {
     "13C": get_relaxation_C,
     "2H": get_relaxation_D,
