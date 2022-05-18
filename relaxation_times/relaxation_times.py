@@ -20,7 +20,7 @@ class GetRelaxationData():
         self.magnetic_field=magnetic_field
         self.input_data=input_data
         self.nuclei=nuclei
-        self.output_name=output_name
+        self.output_name=output_name + ".out"
         
         self.org_corrF, self.times_out=self.read_data()
         
@@ -240,24 +240,17 @@ def get_relaxation_N(magnetic_field,Coeffs,Ctimes,OP):
     rN = 0.101 * 10**(-9); # average cubic length of N-H bond
     d = 1 * (mu * gammaN * gammaH * h_planck) / (4 * np.pi * rN**3); # dipolar coupling constant
 
-    #units were corrected by S.Ollila and E.Mantzari, removed 2*pi
+    #units were corrected by S.Ollila and E.Mantzari, removed 2*pi from R1 and R2
     R1 = (d**2 / 20) * (1 * JhMn + 3 * Jn + 6 * JhPn) + Jn * (wn * 160 * 10**(-6))**2 / 15   ; 
     R2 = 0.5 * (d**2 / 20) * (4 * J0 + 3 * Jn + 1 * JhMn + 6 * Jh + 6 * JhPn) + (wn * 160 * 10**(-6))**2 / 90 * (4 * J0 + 3 * Jn);
     NOE = 1 + (d**2 / 20) * (6 * JhPn - 1 * JhMn) * gammaH / (gammaN * R1);
 
 
-    print("T1: {}, T2: {}, NOE: {}".format(1/R1, 1/R2, NOE))
+    #print("T1: {}, T2: {}, NOE: {}".format(1/R1, 1/R2, NOE))
     
-    with open("T1_python_d.txt", "a" ) as f : 
-         f.write("{} \n".format(1/R1))
+    
            
-    with open("T2_python_d.txt", "a" ) as f : 
-         f.write("{} \n".format(1/R2))
-           
-    with open("NOE_python_d.txt", "a" ) as f : 
-         f.write("{} \n".format(NOE))
-           
-    return R1, R2, NOE
+    return 1/R1, 1/R2, NOE
     
 
 def initilize_output(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_corr_file,nuclei,output_name,author_name):
