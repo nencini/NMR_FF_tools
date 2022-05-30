@@ -29,12 +29,12 @@ class GetRelaxationData():
         self.org_corrF=self.org_corrF[0:analyze_until]
         self.times_out=self.times_out[0:analyze_until]
         
-        Teff, tau_eff_area, R1, R2, NOE = self.calc_relax_time()
+        Teff, tau_eff_area, self.T1, self.T2, self.NOE = self.calc_relax_time()
         
-        print("R1: {} R2: {} NOE: {}".format(R1, R2, NOE))
+        print("T1: {} T2: {} NOE: {}".format(self.T1, self.T2, self.NOE))
 
         with open(output_name,"a") as f:
-            f.write("{:10} {:10.4f} {:10.4f} {:10.4f}".format(input_data, R1, R2, NOE))
+            f.write("{:10} {:10.4f} {:10.4f} {:10.4f} \n".format(input_data, self.T1, self.T2, self.NOE))
         
     
 
@@ -112,15 +112,16 @@ class GetRelaxationData():
         # changin the unit of time permanently
         Ctimes = Ctimes * 0.001 * 10 ** (-9);
         self.Coeffs=Coeffs
-
+        self.Ctimes=Ctimes
+	
         #Calculate the relaxation times for chosen nuclei
         R1, R2, NOE = choose_nuclei[self.nuclei](self.magnetic_field,Coeffs,Ctimes,self.OP) 
 
 
         
         #get the reconstucted correlation function
-        rec_corrF=Cexp_mat.dot(Coeffs)
-        self.plot_fit(rec_corrF)
+        self.rec_corrF=Cexp_mat.dot(Coeffs)
+        self.plot_fit(self.rec_corrF)
         self.plot_exp_hist(Ctimes,Coeffs)
 
         return Teff, tau_eff_area, R1, R2, NOE
@@ -170,7 +171,7 @@ def get_relaxation_D(magnetic_field,Coeffs,Ctimes,OP):
     R1 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (0 * J0 + 2 * J1 + 8 * J2)
     R2 = 3 * (xksi  * np.pi) ** 2 / 40.0 * (1 - OP ** 2) * (3 * J0 + 5 * J1 + 2 * J2)
 
-    return R1, R2, 0
+    return 1/R1, 1/R2, 0
 
 
 def get_relaxation_C(magnetic_field,Coeffs,Ctimes,OP):
@@ -200,7 +201,7 @@ def get_relaxation_C(magnetic_field,Coeffs,Ctimes,OP):
     R1 = (22000 * 2 * np.pi) ** 2 / 20.0 * (1 - OP ** 2) * (J0 + 3 * J1 + 6 * J2)
 
 
-    return R1, 0, 0
+    return 1/R1, 0, 0
 
 
 def get_relaxation_N(magnetic_field,Coeffs,Ctimes,OP):
@@ -270,3 +271,5 @@ choose_nuclei = {
     "2H": get_relaxation_D,
     "15N": get_relaxation_N
 }
+
+
