@@ -11,6 +11,95 @@ gammaN=-27.166*10**6;
 
 
 
+
+#added 31.5.2022
+
+def ReadREADME(path,moleculeType):
+    readme = path+ "/README.yaml"
+    with open(readme) as yaml_file:
+        readme = yaml.load(yaml_file, Loader=yaml.FullLoader)
+    
+    grofile=path+readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["gro"]["NAME"]
+    xtcfile=path+readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["xtc"]["NAME"]
+    tprfile=path+readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["tpr"]["NAME"]
+
+    return grofile, xtcfile, tprfile
+
+def CalculateCorrelationFunctions(path,begin,end,RM_avail,grofile,xtcfile,tprfile,atom1,atom2,moleculeType):
+    if RM_avail:
+        readme = path+ "/README.yaml"
+        with open(readme) as yaml_file:
+            readme = yaml.load(yaml_file, Loader=yaml.FullLoader)
+    
+    
+    ##### MAKE NDX FILE #####
+    #grofile=path+readme["FILES"]["gro"]["NAME"]
+    if RM_avail:
+        readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["ndx_"+atom1+"_"+atom2]={}
+        readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["ndx_"+atom1+"_"+atom2]["NAME"]="index_"+atom1+"_"+atom2+".ndx"
+        output_ndx=path+readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["ndx_"+atom1+"_"+atom2]["NAME"]
+    else:
+        output_ndx="index_"+atom1+"_"+atom2+".ndx"
+    
+    if moleculeType=="Protein":    
+        with open(grofile, 'rt') as gro_file:
+            residue=""
+            residues=0
+            with open(output_ndx, 'w') as fo:
+                for line in gro_file:
+                    if 'Title' in line or len(line.split())==1 or len(line.split())==3:
+                        pass
+                    else:    
+                    
+                        if line.split()[1]==atom1:
+                            residue=line.split()[0]
+                            N=int(line.split()[2])
+                        if line.split()[1]==atom2:
+                            HN=int(line.split()[2])
+                            if residue==line.split()[0]:
+                                fo.write("[ {} ]\n {} {}\n".format(residue,N,HN))
+                                residues+=1
+                                
+    else:
+        with open(grofile, 'rt') as gro_file:
+            residue=""
+            residues=0
+            with open(output_ndx, 'w') as fo:
+                fo.write("[ {} ] \n".format(residue))
+                for line in gro_file:
+                    if 'Title' in line or len(line.split())==1 or len(line.split())==3:
+                        pass
+                    else:    
+                    
+                        if line.split()[1]==atom1:
+                            residue=line.split()[0]
+                            N=int(line.split()[2])
+                        if line.split()[1]==atom2:
+                            HN=int(line.split()[2])
+                            if residue==line.split()[0]:
+                                fo.write(" {} {}\n".format(N,HN))
+                                residues+=1
+    #########################
+    
+    ##### GET CORRELATION FUNCTIONS #####
+    #xtcfile=path+readme["FILES"]["xtc"]["NAME"]
+    #tprfile=path+readme["FILES"]["tpr"]["NAME"]
+    if RM_avail:
+        new_folder=readme["FILES"]["xtc"]["NAME"][:-4] + "_" + str(int(begin/1000)) + "_" + str(int(end/1000))
+    else:
+        new_folder="corr_func"+ "_" + str(int(begin/1000)) + "_" + str(int(end/1000))
+    
+    if os.path.isdir(new_folder):
+        os.system("rm -r "+new_folder)
+    os.system("mkdir " + new_folder)
+    print("Number of corelation functions to calculate: {} \n".format(residues))
+    for i in range(0,residues):
+        print("Calculatin correlation function {}".format(i+1))
+        os.system("echo " + str(i) + ' | gmx rotacf -f ' + xtcfile + ' -s ' + tprfile + '  -n ' + output_ndx + '  -o ' + new_folder + '/NHrotaCF_' + str(i) + ' -P 2 -d -e ' + str(end) + ' -b ' +str(begin))
+    
+
+
+
 class GetRelaxationData():
     def __init__(self,OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_data,nuclei,output_name):
         self.OP=OP
@@ -273,3 +362,17 @@ choose_nuclei = {
 }
 
 
+
+#addad 31.5.2022
+#executed if not imported
+
+if __name__ == "__main__":
+    # help message is automatically provided
+    # type=string, action=store is default
+    parser = OptionParser()
+    parser.add_option('-r', '--readme',  dest='RM_avail',  help='Read informaton from README.yaml. \n Useful for analysis of multiple data sets. \n Default: True', default=True)
+    parser.add_option('-g', '--gro',  dest='grofile',  help='gro file name', default="file.gro")
+    parser.add_option('-x', '--traj', dest='xtcfile', help='xtc file name.', default="traj.xtc")
+    parser.add_option('-s', '--tpr', dest='tprfile', help='tpr file name.', default="top.tpr")
+    parser.add_option('-o', '--out',  dest='out_fname',  help='output (OPs mean&std) file name', default="Headgroup_Glycerol_OPs.dat")
+    opts, args = parser.parse_args()
