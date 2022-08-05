@@ -3,6 +3,7 @@ import numpy as np
 from scipy import optimize
 import matplotlib.pyplot as plt
 from datetime import date
+import os
 
 gammaD=41.695*10**6; #r*s^(-1)*T^(-1)
 gammaH=267.513*10**6;
@@ -30,7 +31,21 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,grofile,xtcfile,tprfil
         readme = path+ "/README.yaml"
         with open(readme) as yaml_file:
             readme = yaml.load(yaml_file, Loader=yaml.FullLoader)
+        grofile=readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["gro"]["NAME"]
+        xtcfile=readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["xtc"]["NAME"]
+        tprfile=readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["tpr"]["NAME"]
     
+    
+    if RM_avail:
+        new_folder=readme["FILES"]["xtc"]["NAME"][:-4] + "_" + str(int(begin/1000)) + "_" + str(int(end/1000)) + "_" + str(atom1) + "_" + str(atom2)
+    else:
+        new_folder="corr_func"+ "_"  +   grofile[:-4] + "_" + str(int(begin/1000)) + "_" + str(int(end/1000)) + "_" + str(atom1) + "_" + str(atom2)
+    
+    
+    
+    grofile=path+grofile
+    xtcfile=path+xtcfile
+    tprfile=path+tprfile
     
     ##### MAKE NDX FILE #####
     #grofile=path+readme["FILES"]["gro"]["NAME"]
@@ -63,9 +78,9 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,grofile,xtcfile,tprfil
     else:
         with open(grofile, 'rt') as gro_file:
             residue=""
-            residues=0
+            residues=1
             with open(output_ndx, 'w') as fo:
-                fo.write("[ {} ] \n".format(residue))
+                fo.write("[ {}_{} ] \n".format(atom1,atom2))
                 for line in gro_file:
                     if 'Title' in line or len(line.split())==1 or len(line.split())==3:
                         pass
@@ -78,16 +93,16 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,grofile,xtcfile,tprfil
                             HN=int(line.split()[2])
                             if residue==line.split()[0]:
                                 fo.write(" {} {}\n".format(N,HN))
-                                residues+=1
+                                
     #########################
     
     ##### GET CORRELATION FUNCTIONS #####
     #xtcfile=path+readme["FILES"]["xtc"]["NAME"]
     #tprfile=path+readme["FILES"]["tpr"]["NAME"]
-    if RM_avail:
-        new_folder=readme["FILES"]["xtc"]["NAME"][:-4] + "_" + str(int(begin/1000)) + "_" + str(int(end/1000))
-    else:
-        new_folder="corr_func"+ "_" + str(int(begin/1000)) + "_" + str(int(end/1000))
+    if end==-1:
+        end=int(readme["FILES"]["xtc"]["LENGTH"])
+    
+    
     
     if os.path.isdir(new_folder):
         os.system("rm -r "+new_folder)
