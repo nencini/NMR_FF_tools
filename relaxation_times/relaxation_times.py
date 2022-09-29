@@ -4,6 +4,7 @@ from scipy import optimize
 import matplotlib.pyplot as plt
 from datetime import date
 import os
+import re
 
 gammaD=41.695*10**6; #r*s^(-1)*T^(-1)
 gammaH=267.513*10**6;
@@ -116,7 +117,7 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,grofile,xtcfile,tprfil
 
 
 class GetRelaxationData():
-    def __init__(self,OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_data,nuclei,output_name):
+    def __init__(self,OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_data,nuclei,title):
         self.OP=OP
         self.smallest_corr_time=smallest_corr_time
         self.biggest_corr_time=biggest_corr_time
@@ -124,7 +125,7 @@ class GetRelaxationData():
         self.magnetic_field=magnetic_field
         self.input_data=input_data
         self.nuclei=nuclei
-        self.output_name=output_name + ".out"
+        self.title=title
         
         self.org_corrF, self.times_out=self.read_data()
         
@@ -137,8 +138,6 @@ class GetRelaxationData():
         
         print("T1: {} T2: {} NOE: {}".format(self.T1, self.T2, self.NOE))
 
-        with open(output_name,"a") as f:
-            f.write("{:10} {:10.4f} {:10.4f} {:10.4f} \n".format(input_data, self.T1, self.T2, self.NOE))
         
     
 
@@ -159,7 +158,7 @@ class GetRelaxationData():
                 continue    
             if 'label' in line:
                 continue
-            if line is "":
+            if line == "":
                 continue
             parts = line.split()
             if np.shape(parts)[0]==2:
@@ -240,7 +239,7 @@ class GetRelaxationData():
         plt.plot(self.times_out,reconstruction,label="Fit")
         plt.xlabel("Time [ps]")
         plt.ylabel("Autocorrelation function")
-        plt.title(self.input_data)
+        plt.title(self.title)
         plt.legend()
         plt.show()
 
@@ -358,16 +357,7 @@ def get_relaxation_N(magnetic_field,Coeffs,Ctimes,OP):
     return 1/R1, 1/R2, NOE
     
 
-def initilize_output(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_corr_file,nuclei,output_name,author_name):
-    with open(output_name,"w") as f:
-        f.write("#Relaxation time analysis from MD simulations, analysed {} by {}".format(date.today(),author_name))
-        f.write("\n \n#Nuclei: {} \n".format(nuclei))
-        f.write("#Magnetic field: {} T \n".format(magnetic_field))
-        f.write("#Order parameter: {} \n".format(OP))
-        f.write("#Fraction of autocorrelation function analysed: {} \n".format(analyze))
-        f.write("\n#Autocorrelation function fitted by {} exponential functions \n".format(N_exp_to_fit))
-        f.write("#Timescales ranging from 10^{} ps to 10^{} ps \n".format(smallest_corr_time,biggest_corr_time))
-        f.write("\n# file                   R1         R2          NOE \n".format(smallest_corr_time,biggest_corr_time))
+
         
          
 choose_nuclei = {
@@ -377,6 +367,169 @@ choose_nuclei = {
 }
 
 
+#addad 29.9.2022
+def plot_T1_T2_noe(aminoAcids):
+    plt.rcParams["figure.figsize"] = [15.00, 12]
+    plt.rcParams["figure.autolayout"] = True
+
+    fig, (ax1, ax2, ax3) = plt.subplots(3)
+
+
+    #ax1.grid()
+    ax1.set_ylabel("T1 [s]")
+    ax1.set_xlabel("Residue")
+    ax2.set_ylabel("T2 [s]")
+    ax2.set_xlabel("Residue")
+    ax3.set_ylabel("hetNOE")
+    ax3.set_xlabel("Residue")
+    max_T1=0
+    max_T2=0
+    max_noe=0
+    min_noe=0
+    for i in range(len(aminoAcids)):
+        ax1.plot(i,aminoAcids[i].T1,"o",color="blue")
+        max_T1=max(max_T1,aminoAcids[i].T1)
+
+        ax2.plot(i,aminoAcids[i].T2,"o",color="blue")
+        max_T2=max(max_T2,aminoAcids[i].T2)
+
+        ax3.plot(i,aminoAcids[i].NOE,"o",color="blue")
+        max_noe=max(max_noe,aminoAcids[i].NOE)
+        min_noe=min(min_noe,aminoAcids[i].NOE)
+    ax1.set_ylim([0,max_T1+0.1 ])
+    ax2.set_ylim([0,max_T2+0.1 ])
+    ax3.set_ylim([min_noe-0.1,max_noe+0.1 ])
+
+    plt.show()
+
+
+
+#addad 29.9.2022
+def PlotTimescales(aminoAcids,merge,groupTimes,title="Title",xlabel="xlabel",ylim=None):
+    
+    step_exp=(aminoAcids[0].biggest_corr_time-aminoAcids[0].smallest_corr_time)/aminoAcids[0].N_exp_to_fit
+    Ctimes = 10 ** np.arange(aminoAcids[0].smallest_corr_time, aminoAcids[0].biggest_corr_time, step_exp)
+    Ctimes = Ctimes * 0.001 * 10 ** (-9);
+    Ctimes_list=[Ctimes]
+
+    for i in range(len(aminoAcids)):
+        Ctimes_list.append(aminoAcids[i].Coeffs)
+        Ctimes=np.array(Ctimes_list)
+        Ctimes=np.transpose(Ctimes)
+    
+    
+    working_Ctimes=np.copy(Ctimes)
+    plt.rcParams["figure.figsize"] = [15.00, 7]
+    plt.rcParams["figure.autolayout"] = True
+    plt.rcParams.update({'font.size': 20})
+
+
+    fig, (ax1, ax2) = plt.subplots(2)
+
+    ax1.title.set_text(title)
+    ax1.set_ylim(Ctimes[0,0]/10,Ctimes[-1,0]*10)
+
+    ax1.grid()
+    ax1.set_yscale('log')
+    ax1.set_ylabel("Timescale [s]")
+    ax1.set_xlabel(xlabel)
+    #ax1.set_ylim([10**(-12.4), 10**(-6.8)])
+    if not ylim==None:
+        ax1.set_ylim(ylim[0],ylim[1])
+
+    """Plot the timescales, user specifies the merge to be used.
+    The merge works as follow: The code finds the first timescale with
+    weight bigger bigger than 0 and merges with 'merge' subsequent timescales.
+    The final result is plotted as a weighted average of the merged points."""
+    
+    colors=["blue","orange","green","red","purple","brown","ping","gray","olive","cyan"]
+    
+    for residue in range(1,working_Ctimes.shape[1]):
+        timescale=0
+        while timescale < working_Ctimes.shape[0]:
+            #print("{} {} \n".format(i, j))
+            if working_Ctimes[timescale,residue]>0:
+                time_to_plot=working_Ctimes[timescale,0]
+                if merge>1:
+                    time_to_plot=0
+                    total_weight=0
+                    for i in range(0,merge):
+                        try:
+                            time_to_plot+=working_Ctimes[timescale+i,0]*working_Ctimes[timescale+i,residue]
+                            total_weight+=working_Ctimes[timescale+i,residue]
+                        except:
+                            pass
+                    time_to_plot/=total_weight
+                                                       
+                        
+                if time_to_plot<groupTimes[0]:
+                    ax1.plot(residue, time_to_plot, marker="o", markersize=5, markeredgecolor=colors[0], markerfacecolor=colors[0])
+                else:
+                    for i in range(0,len(groupTimes)-1):
+                        if time_to_plot>groupTimes[i] and time_to_plot<groupTimes[i+1]:
+                            ax1.plot(residue, time_to_plot, marker="o", markersize=5, markeredgecolor=colors[i+1], markerfacecolor=colors[i+1])
+                        elif time_to_plot>groupTimes[-1]:
+                            ax1.plot(residue, time_to_plot, marker="o", markersize=5, markeredgecolor=colors[len(groupTimes)+1], markerfacecolor=colors[len(groupTimes)+1])
+                
+                timescale+=merge-1
+            timescale+=1
+       
+    
+
+    ax2.grid()
+    ax2.set_ylim(0,1)
+    ax2.set_ylabel("Coefficient's weights")
+    ax2.set_xlabel(xlabel)
+
+
+    for residue in range(1,working_Ctimes.shape[1]):
+        timescale=0
+        while timescale < working_Ctimes.shape[0]:
+            #print("{} {} \n".format(i, j))
+            if working_Ctimes[timescale,residue]>0:
+                time_to_plot=working_Ctimes[timescale,0]
+                if merge>1:
+                    time_to_plot=0
+                    total_weight=0
+                    for i in range(1,merge):
+                        try:
+                            total_weight+=working_Ctimes[timescale,residue]
+                            time_to_plot+=working_Ctimes[timescale,0]*working_Ctimes[timescale,residue]
+                            working_Ctimes[timescale,residue]+=working_Ctimes[timescale+i,residue]
+                            
+                        except:
+                            pass
+                    time_to_plot/=total_weight
+                    
+
+                if time_to_plot<groupTimes[0]:
+                    ax2.plot(residue, working_Ctimes[timescale,residue], marker="o", markersize=5, markeredgecolor=colors[0], markerfacecolor=colors[0])
+                else:
+                    for i in range(0,len(groupTimes)-1):
+                        if time_to_plot>groupTimes[i] and time_to_plot<groupTimes[i+1]:
+                            ax2.plot(residue, working_Ctimes[timescale,residue], marker="o", markersize=5, markeredgecolor=colors[i+1], markerfacecolor=colors[i+1])
+                        elif time_to_plot>groupTimes[-1]:
+                            ax2.plot(residue, working_Ctimes[timescale,residue], marker="o", markersize=5, markeredgecolor=colors[len(groupTimes)+1], markerfacecolor=colors[len(groupTimes)+1])
+                timescale+=merge-1
+            timescale+=1
+
+     
+    
+    plt.show()   
+
+#added 29.9.2022
+def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,folder_path,nuclei,output_name):
+    aminoAcids={}
+    for j,file in enumerate(os.listdir(folder_path)):
+        x = re.findall("[0-9]", os.fsdecode(file))
+        AA_index=""
+        for i in x:
+            AA_index+=i
+        AA_index=int(AA_index)
+        input_corr_file = folder_path+os.fsdecode(file)
+        AA=GetRelaxationData(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_corr_file,nuclei,output_name+" "+str(AA_index))
+        aminoAcids[AA_index]=AA
+    return aminoAcids
 
 #addad 31.5.2022
 #executed if not imported
