@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 from datetime import date
 import os
 import re
+import yaml
+import time
+import MDAnalysis as mda
 
 gammaD=41.695*10**6; #r*s^(-1)*T^(-1)
 gammaH=267.513*10**6;
@@ -368,7 +371,7 @@ choose_nuclei = {
 
 
 #addad 29.9.2022
-def plot_T1_T2_noe(aminoAcids):
+def plot_T1_T2_noe(aminoAcids,output):
     plt.rcParams["figure.figsize"] = [15.00, 12]
     plt.rcParams["figure.autolayout"] = True
 
@@ -386,7 +389,16 @@ def plot_T1_T2_noe(aminoAcids):
     max_T2=0
     max_noe=0
     min_noe=0
+    
+    relax_data={}
+    
     for i in range(len(aminoAcids)):
+    
+        relax_data[i]={}
+        relax_data[i]["T1"]=float(aminoAcids[i].T1)
+        relax_data[i]["T2"]=float(aminoAcids[i].T2)
+        relax_data[i]["hetNOE"]=float(aminoAcids[i].NOE)
+    
         ax1.plot(i,aminoAcids[i].T1,"o",color="blue")
         max_T1=max(max_T1,aminoAcids[i].T1)
 
@@ -402,7 +414,8 @@ def plot_T1_T2_noe(aminoAcids):
 
     plt.show()
 
-
+    with open(output, 'w') as f:
+        yaml.dump(relax_data,f, sort_keys=True)
 
 #addad 29.9.2022
 def PlotTimescales(aminoAcids,merge,groupTimes,title="Title",xlabel="xlabel",ylim=None):
@@ -516,6 +529,108 @@ def PlotTimescales(aminoAcids,merge,groupTimes,title="Title",xlabel="xlabel",yli
      
     
     plt.show()   
+
+
+
+
+#added 18.10.2022
+def remove_water(readme,folder_path,xtc=False):
+    
+    with open(readme) as yaml_file:
+        content = yaml.load(yaml_file, Loader=yaml.FullLoader)
+    
+    
+    if not "FILES_FOR_RELAXATION" in content:
+        content["FILES_FOR_RELAXATION"]={}
+        
+    conversions={"xtc":"echo 'non-Water'",
+          "tpr":"echo non-Water|gmx convert-tpr -s " + folder_path+"/"+content["FILES"]["tpr"]["NAME"] + " -o " 
+                 + folder_path+"/non-Water_"+content["FILES"]["tpr"]["NAME"],
+          "gro":"echo non-Water| gmx trjconv -f " + folder_path+"/"+content["FILES"]["xtc"]["NAME"] + 
+               " -s " + folder_path+"/"+content["FILES"]["tpr"]["NAME"] + " -b " + content["BINDINGEQ"] 
+              + " -e " + content["BINDINGEQ"] 
+               + " -pbc mol -o " + folder_path+ "/non-Water_" + content["FILES"]["gro"]["NAME"]}
+    if xtc:
+        conversions["xtc"]=("echo 'non-Water| gmx trjconv -f " + folder_path+"/"+content["FILES"]["xtc"]["NAME"] + 
+        " -s " + folder_path+"/"+content["FILES"]["tpr"]["NAME"] + " -b " + content["BINDINGEQ"] 
+               + " -o " + folder_path+ "/non-Water_" + content["FILES"]["xtc"]["NAME"])
+    
+    check_xtc=False
+    for conversion in conversions:
+        if not conversion in content["FILES_FOR_RELAXATION"]:
+            content["FILES_FOR_RELAXATION"][conversion]={}
+            os.system(conversions[conversion])
+            check_xtc=True
+        elif not content["FILES_FOR_RELAXATION"][conversion]["FROM_ORIG"]==content["FILES"][conversion]["MODIFIED"]:
+            os.system(conversions[conversion])
+            check_xtc=True
+        os.system(conversions[conversion])
+            
+        content["FILES_FOR_RELAXATION"][conversion]["NAME"]="non-Water_" + content["FILES"][conversion]["NAME"]
+    
+        file_adress = folder_path+"/"+content["FILES_FOR_RELAXATION"][conversion]["NAME"]
+        timepre=os.path.getmtime(file_adress)
+        file_mod = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timepre))
+        content["FILES_FOR_RELAXATION"][conversion]["SIZE"]=os.path.getsize(file_adress)/1000000
+        content["FILES_FOR_RELAXATION"][conversion]["MODIFIED"] = file_mod
+        content["FILES_FOR_RELAXATION"][conversion]["FROM_ORIG"] = content["FILES"][conversion]["MODIFIED"]
+    
+    check_xtc=True
+    if check_xtc:
+        mol = mda.Universe(folder_path+"/"+content["FILES_FOR_RELAXATION"]["gro"]["NAME"],
+                           folder_path+"/"+content["FILES_FOR_RELAXATION"]["xtc"]["NAME"])
+
+        Nframes=len(mol.trajectory)
+        timestep = mol.trajectory.dt
+        trj_length = Nframes * timestep
+        begin_time=mol.trajectory.time
+
+        content["FILES_FOR_RELAXATION"]["xtc"]['SAVING_FREQUENCY'] = timestep
+        content["FILES_FOR_RELAXATION"]['xtc']['LENGTH'] = trj_length
+        content["FILES_FOR_RELAXATION"]['xtc']['BEGIN'] = begin_time
+    
+    
+    with open(readme, 'w') as f:
+        yaml.dump(content,f, sort_keys=False)
+
+
+
+#added 18.10.2022s
+def plot_replicas(*replicas):
+    plt.rcParams["figure.figsize"] = [15.00, 12]
+    plt.rcParams["figure.autolayout"] = True
+
+    fig, (ax1, ax2, ax3) = plt.subplots(3)
+    
+    ax1.set_ylabel("T1 [s]")
+    ax1.set_xlabel("Residue")
+    ax2.set_ylabel("T2 [s]")
+    ax2.set_xlabel("Residue")
+    ax3.set_ylabel("hetNOE")
+    ax3.set_xlabel("Residue")
+    max_T1=0
+    max_T2=0
+    max_noe=0
+    min_noe=0
+    colors=["blue","red","green","gray","brown"]
+    
+    for j,replica in enumerate(replicas):
+        for i in replica:
+            ax1.plot(i,replica[i]["T1"],"o",color=colors[j])
+            max_T1=max(max_T1,replica[i]["T1"])
+
+            ax2.plot(i,replica[i]["T2"],"o",color=colors[j])
+            max_T2=max(max_T2,replica[i]["T2"])
+
+            ax3.plot(i,replica[i]["hetNOE"],"o",color=colors[j])
+            max_noe=max(max_noe,replica[i]["hetNOE"])
+            min_noe=min(min_noe,replica[i]["hetNOE"])
+
+        ax1.set_ylim([0,max_T1+0.1 ])
+        ax2.set_ylim([0,max_T2+0.1 ])
+        ax3.set_ylim([min_noe-0.1,max_noe+0.1 ])
+
+
 
 #added 29.9.2022
 def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,folder_path,nuclei,output_name):
