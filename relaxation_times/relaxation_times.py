@@ -30,21 +30,56 @@ def ReadREADME(path,moleculeType):
 
     return grofile, xtcfile, tprfile
 
-def CalculateCorrelationFunctions(path,begin,end,RM_avail,grofile,xtcfile,tprfile,atom1,atom2,moleculeType):
+
+# modified 2/11/2022
+def CalculateCorrelationFunctions(path,begin,end,RM_avail,atom1,atom2,moleculeType,grofile=None,xtcfile=None,tprfile=None):
+    """ Function to calculate Rotational Correlation functions from MD simulations.
+    \n
+    1) Creates index file
+    2) Calculates RCF for the enteries in the index file.
+    \n
+    Takes following arguments:
+      path - folder with gro, xtc, tpr, (README.yaml) files
+      begin - where to start the RCF analysis, equivalent to -b in gromacs
+      end - where to end the RCF analysis, equivalent to -e in gromacs
+            if end==-1 and README.yaml exists, the whole trajectory is calculated
+            if end==-1 and README.yaml DOES NOT exist, up to first 50 us are analyzed 
+                                                       (should suffice for all of our cases)
+      RM_avail - does README.yaml exist at "path" (True/False)
+      atom1, atom 2 - name of the atoms used for analysis in the gro file
+      moleculeType - Protein/"something_else" for index file creation purposes
+                     Protein - creates separate groups in the index file for every atom1, atom2 pairs that are found
+                     "something_else" - any name is allowed, 
+                                        creates only 1 group that contains all atom1-atom2 pairs found
+                                        Useful for lipids/suractants...
+                                        RCF is calculated as an average from all the pairs found
+    \n
+    Optional arguments, mandatory when README.yaml not available:
+      grofile -  default None, gro file in path
+      xtcfile -  default None, xtc file in path
+      tprfile -  default None, tpr file in path
+      
+    \n
+    Output:
+        Creates a folder at working directory with the name of gro file and saves correlation functions there.
+        When README.yaml available, it saves the path of the correlations functions and date of analysis there
+    """
     if RM_avail:
-        readme = path+ "/README.yaml"
-        with open(readme) as yaml_file:
+        readmeS = path+ "/README.yaml"
+        with open(readmeS) as yaml_file:
             readme = yaml.load(yaml_file, Loader=yaml.FullLoader)
-        grofile=readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["gro"]["NAME"]
-        xtcfile=readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["xtc"]["NAME"]
-        tprfile=readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["tpr"]["NAME"]
+        grofile=readme["FILES_FOR_RELAXATION"]["gro"]["NAME"]
+        xtcfile=readme["FILES_FOR_RELAXATION"]["xtc"]["NAME"]
+        tprfile=readme["FILES_FOR_RELAXATION"]["tpr"]["NAME"]
     
-    
-    if RM_avail:
+        if end==-1:
+            end=int(readme["FILES_FOR_RELAXATION"]["xtc"]["LENGTH"])
+
         new_folder=readme["FILES"]["xtc"]["NAME"][:-4] + "_" + str(int(begin/1000)) + "_" + str(int(end/1000)) + "_" + str(atom1) + "_" + str(atom2)
     else:
         new_folder="corr_func"+ "_"  +   grofile[:-4] + "_" + str(int(begin/1000)) + "_" + str(int(end/1000)) + "_" + str(atom1) + "_" + str(atom2)
-    
+        if end==-1:
+            end=50000000 # a dirty trick to deal with the lack of readme file, for the moment, will improve in the future
     
     
     grofile=path+grofile
@@ -52,11 +87,10 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,grofile,xtcfile,tprfil
     tprfile=path+tprfile
     
     ##### MAKE NDX FILE #####
-    #grofile=path+readme["FILES"]["gro"]["NAME"]
     if RM_avail:
-        readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["ndx_"+atom1+"_"+atom2]={}
-        readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["ndx_"+atom1+"_"+atom2]["NAME"]="index_"+atom1+"_"+atom2+".ndx"
-        output_ndx=path+readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["ndx_"+atom1+"_"+atom2]["NAME"]
+        readme["FILES_FOR_RELAXATION"]["ndx_"+atom1+"_"+atom2]={}
+        readme["FILES_FOR_RELAXATION"]["ndx_"+atom1+"_"+atom2]["NAME"]="index_"+atom1+"_"+atom2+".ndx"
+        output_ndx=path+readme["FILES_FOR_RELAXATION"]["ndx_"+atom1+"_"+atom2]["NAME"]
     else:
         output_ndx="index_"+atom1+"_"+atom2+".ndx"
     
@@ -101,21 +135,90 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,grofile,xtcfile,tprfil
     #########################
     
     ##### GET CORRELATION FUNCTIONS #####
-    #xtcfile=path+readme["FILES"]["xtc"]["NAME"]
-    #tprfile=path+readme["FILES"]["tpr"]["NAME"]
-    if end==-1:
-        end=int(readme["FILES"]["xtc"]["LENGTH"])
+    
+    if RM_avail:
+        if not 'ANALYSIS' in readme:
+            readme['ANALYSIS']={}
+
+        if not 'CORRELATION_FUNCTIONS' in readme['ANALYSIS']:
+            readme['ANALYSIS']['CORRELATION_FUNCTIONS']={}
+
+        if not 'RELAXATION_TIMES' in readme['ANALYSIS']:
+            readme['ANALYSIS']['RELAXATION_TIMES']={}
+
+        if not new_folder in readme['ANALYSIS']['RELAXATION_TIMES']:
+            readme['ANALYSIS']['RELAXATION_TIMES'][new_folder]={}
+
+        if not new_folder in readme['ANALYSIS']['CORRELATION_FUNCTIONS']:
+            readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]={}
+
+
+        #check if the analysis was already performed
+        file_adress = folder_path+file+"/"+readme["FILES_FOR_RELAXATION"]["xtc"]["NAME"]
+        timepre=os.path.getmtime(file_adress)
+        file_mod = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timepre))
+
+
+        if "FROM_XTC" in readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]:
+            if readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]["FROM_XTC"]==file_mod:
+                analyze=False
+            else:
+                analyze=True
+        else:
+            analyze=True
+    else:
+        analyze=True
+
+    
+    if analyze:
+        if RM_avail:
+            last_frame_should=int(readme["FILES_FOR_RELAXATION"]["xtc"]["LENGTH"])-int(readme["FILES_FOR_RELAXATION"]["xtc"]["SAVING_FREQUENCY"])
+        all_alright=True
+        if os.path.isdir(new_folder):
+            os.system("rm -r "+new_folder)
+        os.system("mkdir " + new_folder)
+        print("Number of corelation functions to calculate: {} \n".format(residues))
+        for i in range(0,residues):
+            print("Calculatin correlation function {}".format(i+1),end=", ")
+            
+            os.system("echo " + str(i) + ' | gmx rotacf -f ' + xtcfile + ' -s ' + tprfile + '  -n ' + output_ndx + '  -o ' + new_folder + '/NHrotaCF_' + str(i) + ' -P 2 -d -e ' + str(end) + ' -b ' +str(begin)+' 2> corr.log')
+            groups=[]
+            with open("corr.log", 'rt') as corr_log:
+                for line in corr_log:
+                    if "Reading frame" in line:
+                        last_frame=int(float(line.split()[4]))
+                    if "Last frame" in line:
+                        last_frame=int(float(line.split()[4]))
+                    if "Group" in line:
+                        groups.append(line.split()[3])
+            if RM_avail:
+                if not last_frame==last_frame_should:
+                    all_alright=False
+            print(" last frame",last_frame)
+            
+            if RM_avail:
+                readme['ANALYSIS']['RELAXATION_TIMES'][new_folder][i]={}
+                readme['ANALYSIS']['RELAXATION_TIMES'][new_folder][i]["RESIDUE"]=groups[i][0:len(groups[i])-1]
+    
+        if all_alright and RM_avail:
+            readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]["LENGTH"]=last_frame
+        elif RM_avail:
+            readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]["LENGTH"]="Problem at "+str(last_frame)
+    
+    os.system("rm corr.log")
+    directory = os.getcwd()
+
+    if RM_avail:
+        readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]["PATH"]=directory
+
+        today = str(date.today())
+        readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]["ANALYZED"]=today
+        readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]["FROM_XTC"]=file_mod
     
     
     
-    if os.path.isdir(new_folder):
-        os.system("rm -r "+new_folder)
-    os.system("mkdir " + new_folder)
-    print("Number of corelation functions to calculate: {} \n".format(residues))
-    for i in range(0,residues):
-        print("Calculatin correlation function {}".format(i+1))
-        os.system("echo " + str(i) + ' | gmx rotacf -f ' + xtcfile + ' -s ' + tprfile + '  -n ' + output_ndx + '  -o ' + new_folder + '/NHrotaCF_' + str(i) + ' -P 2 -d -e ' + str(end) + ' -b ' +str(begin))
-    
+        with open(readmeS, 'w') as f:
+            yaml.dump(readme,f, sort_keys=False)
 
 
 
