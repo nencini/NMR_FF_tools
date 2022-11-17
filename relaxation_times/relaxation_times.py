@@ -154,10 +154,9 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,atom1,atom2,moleculeTy
 
 
         #check if the analysis was already performed
-        file_adress = folder_path+file+"/"+readme["FILES_FOR_RELAXATION"]["xtc"]["NAME"]
+        file_adress = path+"/"+readme["FILES_FOR_RELAXATION"]["xtc"]["NAME"]
         timepre=os.path.getmtime(file_adress)
         file_mod = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timepre))
-
 
         if "FROM_XTC" in readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]:
             if readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]["FROM_XTC"]==file_mod:
@@ -474,7 +473,7 @@ choose_nuclei = {
 
 
 #addad 29.9.2022
-def plot_T1_T2_noe(aminoAcids,output):
+def plot_T1_T2_noe(aminoAcids,output,plot_output):
     plt.rcParams["figure.figsize"] = [15.00, 12]
     plt.rcParams["figure.autolayout"] = True
 
@@ -516,12 +515,13 @@ def plot_T1_T2_noe(aminoAcids,output):
     ax3.set_ylim([min_noe-0.1,max_noe+0.1 ])
 
     plt.show()
+    fig.savefig(plot_output)
 
     with open(output, 'w') as f:
         yaml.dump(relax_data,f, sort_keys=True)
 
 #addad 29.9.2022
-def PlotTimescales(aminoAcids,merge,groupTimes,title="Title",xlabel="xlabel",ylim=None):
+def PlotTimescales(aminoAcids,merge,groupTimes,title="Title",xlabel="xlabel",ylim=None,ylim_weig=None,plot_output="weight.pdf"):
     
     step_exp=(aminoAcids[0].biggest_corr_time-aminoAcids[0].smallest_corr_time)/aminoAcids[0].N_exp_to_fit
     Ctimes = 10 ** np.arange(aminoAcids[0].smallest_corr_time, aminoAcids[0].biggest_corr_time, step_exp)
@@ -552,6 +552,9 @@ def PlotTimescales(aminoAcids,merge,groupTimes,title="Title",xlabel="xlabel",yli
     #ax1.set_ylim([10**(-12.4), 10**(-6.8)])
     if not ylim==None:
         ax1.set_ylim(ylim[0],ylim[1])
+    if not ylim_weig==None:
+        ax2.set_ylim(ylim_weig[0],ylim_weig[1])
+    
 
     """Plot the timescales, user specifies the merge to be used.
     The merge works as follow: The code finds the first timescale with
@@ -630,15 +633,17 @@ def PlotTimescales(aminoAcids,merge,groupTimes,title="Title",xlabel="xlabel",yli
             timescale+=1
 
      
-    
+    fig.savefig(plot_output)
     plt.show()   
+    
 
 
 
 
 #added 18.10.2022
-def remove_water(readme,folder_path,xtc=False):
+def remove_water(folder_path,xtc=False):
     
+    readme=folder_path+"README.yaml"
     with open(readme) as yaml_file:
         content = yaml.load(yaml_file, Loader=yaml.FullLoader)
     
@@ -649,8 +654,8 @@ def remove_water(readme,folder_path,xtc=False):
     conversions={"xtc":"echo 'non-Water'",
           "tpr":"echo non-Water|gmx convert-tpr -s " + folder_path+"/"+content["FILES"]["tpr"]["NAME"] + " -o " 
                  + folder_path+"/non-Water_"+content["FILES"]["tpr"]["NAME"],
-          "gro":"echo non-Water| gmx trjconv -f " + folder_path+"/"+content["FILES"]["xtc"]["NAME"] + 
-               " -s " + folder_path+"/"+content["FILES"]["tpr"]["NAME"] + " -b " + content["BINDINGEQ"] 
+          "gro":"echo System| gmx trjconv -f " + folder_path+"/non-Water_"+content["FILES"]["xtc"]["NAME"] + 
+               " -s " + folder_path+"/non-Water_"+content["FILES"]["tpr"]["NAME"] + " -b " + content["BINDINGEQ"] 
               + " -e " + content["BINDINGEQ"] 
                + " -pbc mol -o " + folder_path+ "/non-Water_" + content["FILES"]["gro"]["NAME"]}
     if xtc:
