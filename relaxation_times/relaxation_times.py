@@ -4,6 +4,10 @@ from scipy import optimize
 import matplotlib.pyplot as plt
 from datetime import date
 import os
+import re
+import yaml
+import time
+import MDAnalysis as mda
 
 gammaD=41.695*10**6; #r*s^(-1)*T^(-1)
 gammaH=267.513*10**6;
@@ -26,21 +30,56 @@ def ReadREADME(path,moleculeType):
 
     return grofile, xtcfile, tprfile
 
-def CalculateCorrelationFunctions(path,begin,end,RM_avail,grofile,xtcfile,tprfile,atom1,atom2,moleculeType):
+
+# modified 2/11/2022
+def CalculateCorrelationFunctions(path,begin,end,RM_avail,atom1,atom2,moleculeType,grofile=None,xtcfile=None,tprfile=None):
+    """ Function to calculate Rotational Correlation functions from MD simulations.
+    \n
+    1) Creates index file
+    2) Calculates RCF for the enteries in the index file.
+    \n
+    Takes following arguments:
+      path - folder with gro, xtc, tpr, (README.yaml) files
+      begin - where to start the RCF analysis, equivalent to -b in gromacs
+      end - where to end the RCF analysis, equivalent to -e in gromacs
+            if end==-1 and README.yaml exists, the whole trajectory is calculated
+            if end==-1 and README.yaml DOES NOT exist, up to first 50 us are analyzed 
+                                                       (should suffice for all of our cases)
+      RM_avail - does README.yaml exist at "path" (True/False)
+      atom1, atom 2 - name of the atoms used for analysis in the gro file
+      moleculeType - Protein/"something_else" for index file creation purposes
+                     Protein - creates separate groups in the index file for every atom1, atom2 pairs that are found
+                     "something_else" - any name is allowed, 
+                                        creates only 1 group that contains all atom1-atom2 pairs found
+                                        Useful for lipids/suractants...
+                                        RCF is calculated as an average from all the pairs found
+    \n
+    Optional arguments, mandatory when README.yaml not available:
+      grofile -  default None, gro file in path
+      xtcfile -  default None, xtc file in path
+      tprfile -  default None, tpr file in path
+      
+    \n
+    Output:
+        Creates a folder at working directory with the name of gro file and saves correlation functions there.
+        When README.yaml available, it saves the path of the correlations functions and date of analysis there
+    """
     if RM_avail:
-        readme = path+ "/README.yaml"
-        with open(readme) as yaml_file:
+        readmeS = path+ "/README.yaml"
+        with open(readmeS) as yaml_file:
             readme = yaml.load(yaml_file, Loader=yaml.FullLoader)
-        grofile=readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["gro"]["NAME"]
-        xtcfile=readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["xtc"]["NAME"]
-        tprfile=readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["tpr"]["NAME"]
+        grofile=readme["FILES_FOR_RELAXATION"]["gro"]["NAME"]
+        xtcfile=readme["FILES_FOR_RELAXATION"]["xtc"]["NAME"]
+        tprfile=readme["FILES_FOR_RELAXATION"]["tpr"]["NAME"]
     
-    
-    if RM_avail:
+        if end==-1:
+            end=int(readme["FILES_FOR_RELAXATION"]["xtc"]["LENGTH"])
+
         new_folder=readme["FILES"]["xtc"]["NAME"][:-4] + "_" + str(int(begin/1000)) + "_" + str(int(end/1000)) + "_" + str(atom1) + "_" + str(atom2)
     else:
         new_folder="corr_func"+ "_"  +   grofile[:-4] + "_" + str(int(begin/1000)) + "_" + str(int(end/1000)) + "_" + str(atom1) + "_" + str(atom2)
-    
+        if end==-1:
+            end=50000000 # a dirty trick to deal with the lack of readme file, for the moment, will improve in the future
     
     
     grofile=path+grofile
@@ -48,11 +87,10 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,grofile,xtcfile,tprfil
     tprfile=path+tprfile
     
     ##### MAKE NDX FILE #####
-    #grofile=path+readme["FILES"]["gro"]["NAME"]
     if RM_avail:
-        readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["ndx_"+atom1+"_"+atom2]={}
-        readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["ndx_"+atom1+"_"+atom2]["NAME"]="index_"+atom1+"_"+atom2+".ndx"
-        output_ndx=path+readme["FILES_FOR_ANALYSIS"]["RELAXATION_TIMES"][moleculeType]["ndx_"+atom1+"_"+atom2]["NAME"]
+        readme["FILES_FOR_RELAXATION"]["ndx_"+atom1+"_"+atom2]={}
+        readme["FILES_FOR_RELAXATION"]["ndx_"+atom1+"_"+atom2]["NAME"]="index_"+atom1+"_"+atom2+".ndx"
+        output_ndx=path+readme["FILES_FOR_RELAXATION"]["ndx_"+atom1+"_"+atom2]["NAME"]
     else:
         output_ndx="index_"+atom1+"_"+atom2+".ndx"
     
@@ -97,26 +135,94 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,grofile,xtcfile,tprfil
     #########################
     
     ##### GET CORRELATION FUNCTIONS #####
-    #xtcfile=path+readme["FILES"]["xtc"]["NAME"]
-    #tprfile=path+readme["FILES"]["tpr"]["NAME"]
-    if end==-1:
-        end=int(readme["FILES"]["xtc"]["LENGTH"])
+    
+    if RM_avail:
+        if not 'ANALYSIS' in readme:
+            readme['ANALYSIS']={}
+
+        if not 'CORRELATION_FUNCTIONS' in readme['ANALYSIS']:
+            readme['ANALYSIS']['CORRELATION_FUNCTIONS']={}
+
+        if not 'RELAXATION_TIMES' in readme['ANALYSIS']:
+            readme['ANALYSIS']['RELAXATION_TIMES']={}
+
+        if not new_folder in readme['ANALYSIS']['RELAXATION_TIMES']:
+            readme['ANALYSIS']['RELAXATION_TIMES'][new_folder]={}
+
+        if not new_folder in readme['ANALYSIS']['CORRELATION_FUNCTIONS']:
+            readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]={}
+
+
+        #check if the analysis was already performed
+        file_adress = path+"/"+readme["FILES_FOR_RELAXATION"]["xtc"]["NAME"]
+        timepre=os.path.getmtime(file_adress)
+        file_mod = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timepre))
+
+        if "FROM_XTC" in readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]:
+            if readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]["FROM_XTC"]==file_mod:
+                analyze=False
+            else:
+                analyze=True
+        else:
+            analyze=True
+    else:
+        analyze=True
+
+    
+    if analyze:
+        if RM_avail:
+            last_frame_should=int(readme["FILES_FOR_RELAXATION"]["xtc"]["LENGTH"])-int(readme["FILES_FOR_RELAXATION"]["xtc"]["SAVING_FREQUENCY"])
+        all_alright=True
+        if os.path.isdir(new_folder):
+            os.system("rm -r "+new_folder)
+        os.system("mkdir " + new_folder)
+        print("Number of corelation functions to calculate: {} \n".format(residues))
+        for i in range(0,residues):
+            print("Calculatin correlation function {}".format(i+1),end=", ")
+            
+            os.system("echo " + str(i) + ' | gmx rotacf -f ' + xtcfile + ' -s ' + tprfile + '  -n ' + output_ndx + '  -o ' + new_folder + '/NHrotaCF_' + str(i) + ' -P 2 -d -e ' + str(end) + ' -b ' +str(begin)+' 2> corr.log')
+            groups=[]
+            with open("corr.log", 'rt') as corr_log:
+                for line in corr_log:
+                    if "Reading frame" in line:
+                        last_frame=int(float(line.split()[4]))
+                    if "Last frame" in line:
+                        last_frame=int(float(line.split()[4]))
+                    if "Group" in line:
+                        groups.append(line.split()[3])
+            if RM_avail:
+                if not last_frame==last_frame_should:
+                    all_alright=False
+            print(" last frame",last_frame)
+            
+            if RM_avail:
+                readme['ANALYSIS']['RELAXATION_TIMES'][new_folder][i]={}
+                readme['ANALYSIS']['RELAXATION_TIMES'][new_folder][i]["RESIDUE"]=groups[i][0:len(groups[i])-1]
+    
+        if all_alright and RM_avail:
+            readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]["LENGTH"]=last_frame
+        elif RM_avail:
+            readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]["LENGTH"]="Problem at "+str(last_frame)
+    
+    os.system("rm corr.log")
+    directory = os.getcwd()
+
+    if RM_avail:
+        readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]["PATH"]=directory
+
+        today = str(date.today())
+        readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]["ANALYZED"]=today
+        readme['ANALYSIS']['CORRELATION_FUNCTIONS'][new_folder]["FROM_XTC"]=file_mod
     
     
     
-    if os.path.isdir(new_folder):
-        os.system("rm -r "+new_folder)
-    os.system("mkdir " + new_folder)
-    print("Number of corelation functions to calculate: {} \n".format(residues))
-    for i in range(0,residues):
-        print("Calculatin correlation function {}".format(i+1))
-        os.system("echo " + str(i) + ' | gmx rotacf -f ' + xtcfile + ' -s ' + tprfile + '  -n ' + output_ndx + '  -o ' + new_folder + '/NHrotaCF_' + str(i) + ' -P 2 -d -e ' + str(end) + ' -b ' +str(begin))
-    
+        with open(readmeS, 'w') as f:
+            yaml.dump(readme,f, sort_keys=False)
 
 
 
 class GetRelaxationData():
-    def __init__(self,OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_data,nuclei,output_name):
+    def __init__(self,OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_data,nuclei,title):
         self.OP=OP
         self.smallest_corr_time=smallest_corr_time
         self.biggest_corr_time=biggest_corr_time
@@ -124,7 +230,7 @@ class GetRelaxationData():
         self.magnetic_field=magnetic_field
         self.input_data=input_data
         self.nuclei=nuclei
-        self.output_name=output_name + ".out"
+        self.title=title
         
         self.org_corrF, self.times_out=self.read_data()
         
@@ -137,8 +243,6 @@ class GetRelaxationData():
         
         print("T1: {} T2: {} NOE: {}".format(self.T1, self.T2, self.NOE))
 
-        with open(output_name,"a") as f:
-            f.write("{:10} {:10.4f} {:10.4f} {:10.4f} \n".format(input_data, self.T1, self.T2, self.NOE))
         
     
 
@@ -159,7 +263,7 @@ class GetRelaxationData():
                 continue    
             if 'label' in line:
                 continue
-            if line is "":
+            if line == "":
                 continue
             parts = line.split()
             if np.shape(parts)[0]==2:
@@ -240,7 +344,7 @@ class GetRelaxationData():
         plt.plot(self.times_out,reconstruction,label="Fit")
         plt.xlabel("Time [ps]")
         plt.ylabel("Autocorrelation function")
-        plt.title(self.input_data)
+        plt.title(self.title)
         plt.legend()
         plt.show()
 
@@ -358,16 +462,7 @@ def get_relaxation_N(magnetic_field,Coeffs,Ctimes,OP):
     return 1/R1, 1/R2, NOE
     
 
-def initilize_output(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_corr_file,nuclei,output_name,author_name):
-    with open(output_name,"w") as f:
-        f.write("#Relaxation time analysis from MD simulations, analysed {} by {}".format(date.today(),author_name))
-        f.write("\n \n#Nuclei: {} \n".format(nuclei))
-        f.write("#Magnetic field: {} T \n".format(magnetic_field))
-        f.write("#Order parameter: {} \n".format(OP))
-        f.write("#Fraction of autocorrelation function analysed: {} \n".format(analyze))
-        f.write("\n#Autocorrelation function fitted by {} exponential functions \n".format(N_exp_to_fit))
-        f.write("#Timescales ranging from 10^{} ps to 10^{} ps \n".format(smallest_corr_time,biggest_corr_time))
-        f.write("\n# file                   R1         R2          NOE \n".format(smallest_corr_time,biggest_corr_time))
+
         
          
 choose_nuclei = {
@@ -377,6 +472,287 @@ choose_nuclei = {
 }
 
 
+#addad 29.9.2022
+def plot_T1_T2_noe(aminoAcids,output,plot_output):
+    plt.rcParams["figure.figsize"] = [15.00, 12]
+    plt.rcParams["figure.autolayout"] = True
+
+    fig, (ax1, ax2, ax3) = plt.subplots(3)
+
+
+    #ax1.grid()
+    ax1.set_ylabel("T1 [s]")
+    ax1.set_xlabel("Residue")
+    ax2.set_ylabel("T2 [s]")
+    ax2.set_xlabel("Residue")
+    ax3.set_ylabel("hetNOE")
+    ax3.set_xlabel("Residue")
+    max_T1=0
+    max_T2=0
+    max_noe=0
+    min_noe=0
+    
+    relax_data={}
+    
+    for i in range(len(aminoAcids)):
+    
+        relax_data[i]={}
+        relax_data[i]["T1"]=float(aminoAcids[i].T1)
+        relax_data[i]["T2"]=float(aminoAcids[i].T2)
+        relax_data[i]["hetNOE"]=float(aminoAcids[i].NOE)
+    
+        ax1.plot(i,aminoAcids[i].T1,"o",color="blue")
+        max_T1=max(max_T1,aminoAcids[i].T1)
+
+        ax2.plot(i,aminoAcids[i].T2,"o",color="blue")
+        max_T2=max(max_T2,aminoAcids[i].T2)
+
+        ax3.plot(i,aminoAcids[i].NOE,"o",color="blue")
+        max_noe=max(max_noe,aminoAcids[i].NOE)
+        min_noe=min(min_noe,aminoAcids[i].NOE)
+    ax1.set_ylim([0,max_T1+0.1 ])
+    ax2.set_ylim([0,max_T2+0.1 ])
+    ax3.set_ylim([min_noe-0.1,max_noe+0.1 ])
+
+    plt.show()
+    fig.savefig(plot_output)
+
+    with open(output, 'w') as f:
+        yaml.dump(relax_data,f, sort_keys=True)
+
+#addad 29.9.2022
+def PlotTimescales(aminoAcids,merge,groupTimes,title="Title",xlabel="xlabel",ylim=None,ylim_weig=None,plot_output="weight.pdf"):
+    
+    step_exp=(aminoAcids[0].biggest_corr_time-aminoAcids[0].smallest_corr_time)/aminoAcids[0].N_exp_to_fit
+    Ctimes = 10 ** np.arange(aminoAcids[0].smallest_corr_time, aminoAcids[0].biggest_corr_time, step_exp)
+    Ctimes = Ctimes * 0.001 * 10 ** (-9);
+    Ctimes_list=[Ctimes]
+
+    for i in range(len(aminoAcids)):
+        Ctimes_list.append(aminoAcids[i].Coeffs)
+        Ctimes=np.array(Ctimes_list)
+        Ctimes=np.transpose(Ctimes)
+    
+    
+    working_Ctimes=np.copy(Ctimes)
+    plt.rcParams["figure.figsize"] = [15.00, 7]
+    plt.rcParams["figure.autolayout"] = True
+    plt.rcParams.update({'font.size': 20})
+
+
+    fig, (ax1, ax2) = plt.subplots(2)
+
+    ax1.title.set_text(title)
+    ax1.set_ylim(Ctimes[0,0]/10,Ctimes[-1,0]*10)
+
+    ax1.grid()
+    ax1.set_yscale('log')
+    ax1.set_ylabel("Timescale [s]")
+    ax1.set_xlabel(xlabel)
+    #ax1.set_ylim([10**(-12.4), 10**(-6.8)])
+    if not ylim==None:
+        ax1.set_ylim(ylim[0],ylim[1])
+    if not ylim_weig==None:
+        ax2.set_ylim(ylim_weig[0],ylim_weig[1])
+    
+
+    """Plot the timescales, user specifies the merge to be used.
+    The merge works as follow: The code finds the first timescale with
+    weight bigger bigger than 0 and merges with 'merge' subsequent timescales.
+    The final result is plotted as a weighted average of the merged points."""
+    
+    colors=["blue","orange","green","red","purple","brown","ping","gray","olive","cyan"]
+    
+    for residue in range(1,working_Ctimes.shape[1]):
+        timescale=0
+        while timescale < working_Ctimes.shape[0]:
+            #print("{} {} \n".format(i, j))
+            if working_Ctimes[timescale,residue]>0:
+                time_to_plot=working_Ctimes[timescale,0]
+                if merge>1:
+                    time_to_plot=0
+                    total_weight=0
+                    for i in range(0,merge):
+                        try:
+                            time_to_plot+=working_Ctimes[timescale+i,0]*working_Ctimes[timescale+i,residue]
+                            total_weight+=working_Ctimes[timescale+i,residue]
+                        except:
+                            pass
+                    time_to_plot/=total_weight
+                                                       
+                        
+                if time_to_plot<groupTimes[0]:
+                    ax1.plot(residue, time_to_plot, marker="o", markersize=5, markeredgecolor=colors[0], markerfacecolor=colors[0])
+                else:
+                    for i in range(0,len(groupTimes)-1):
+                        if time_to_plot>groupTimes[i] and time_to_plot<groupTimes[i+1]:
+                            ax1.plot(residue, time_to_plot, marker="o", markersize=5, markeredgecolor=colors[i+1], markerfacecolor=colors[i+1])
+                        elif time_to_plot>groupTimes[-1]:
+                            ax1.plot(residue, time_to_plot, marker="o", markersize=5, markeredgecolor=colors[len(groupTimes)+1], markerfacecolor=colors[len(groupTimes)+1])
+                
+                timescale+=merge-1
+            timescale+=1
+       
+    
+
+    ax2.grid()
+    ax2.set_ylim(0,1)
+    ax2.set_ylabel("Coefficient's weights")
+    ax2.set_xlabel(xlabel)
+
+
+    for residue in range(1,working_Ctimes.shape[1]):
+        timescale=0
+        while timescale < working_Ctimes.shape[0]:
+            #print("{} {} \n".format(i, j))
+            if working_Ctimes[timescale,residue]>0:
+                time_to_plot=working_Ctimes[timescale,0]
+                if merge>1:
+                    time_to_plot=0
+                    total_weight=0
+                    for i in range(1,merge):
+                        try:
+                            total_weight+=working_Ctimes[timescale,residue]
+                            time_to_plot+=working_Ctimes[timescale,0]*working_Ctimes[timescale,residue]
+                            working_Ctimes[timescale,residue]+=working_Ctimes[timescale+i,residue]
+                            
+                        except:
+                            pass
+                    time_to_plot/=total_weight
+                    
+
+                if time_to_plot<groupTimes[0]:
+                    ax2.plot(residue, working_Ctimes[timescale,residue], marker="o", markersize=5, markeredgecolor=colors[0], markerfacecolor=colors[0])
+                else:
+                    for i in range(0,len(groupTimes)-1):
+                        if time_to_plot>groupTimes[i] and time_to_plot<groupTimes[i+1]:
+                            ax2.plot(residue, working_Ctimes[timescale,residue], marker="o", markersize=5, markeredgecolor=colors[i+1], markerfacecolor=colors[i+1])
+                        elif time_to_plot>groupTimes[-1]:
+                            ax2.plot(residue, working_Ctimes[timescale,residue], marker="o", markersize=5, markeredgecolor=colors[len(groupTimes)+1], markerfacecolor=colors[len(groupTimes)+1])
+                timescale+=merge-1
+            timescale+=1
+
+     
+    fig.savefig(plot_output)
+    plt.show()   
+    
+
+
+
+
+#added 18.10.2022
+def remove_water(folder_path,xtc=False):
+    
+    readme=folder_path+"README.yaml"
+    with open(readme) as yaml_file:
+        content = yaml.load(yaml_file, Loader=yaml.FullLoader)
+    
+    
+    if not "FILES_FOR_RELAXATION" in content:
+        content["FILES_FOR_RELAXATION"]={}
+        
+    conversions={"xtc":"echo 'non-Water'",
+          "tpr":"echo non-Water|gmx convert-tpr -s " + folder_path+"/"+content["FILES"]["tpr"]["NAME"] + " -o " 
+                 + folder_path+"/non-Water_"+content["FILES"]["tpr"]["NAME"],
+          "gro":"echo System| gmx trjconv -f " + folder_path+"/non-Water_"+content["FILES"]["xtc"]["NAME"] + 
+               " -s " + folder_path+"/non-Water_"+content["FILES"]["tpr"]["NAME"] + " -b " + content["BINDINGEQ"] 
+              + " -e " + content["BINDINGEQ"] 
+               + " -pbc mol -o " + folder_path+ "/non-Water_" + content["FILES"]["gro"]["NAME"]}
+    if xtc:
+        conversions["xtc"]=("echo 'non-Water| gmx trjconv -f " + folder_path+"/"+content["FILES"]["xtc"]["NAME"] + 
+        " -s " + folder_path+"/"+content["FILES"]["tpr"]["NAME"] + " -b " + content["BINDINGEQ"] 
+               + " -o " + folder_path+ "/non-Water_" + content["FILES"]["xtc"]["NAME"])
+    
+    check_xtc=False
+    for conversion in conversions:
+        if not conversion in content["FILES_FOR_RELAXATION"]:
+            content["FILES_FOR_RELAXATION"][conversion]={}
+            os.system(conversions[conversion])
+            check_xtc=True
+        elif not content["FILES_FOR_RELAXATION"][conversion]["FROM_ORIG"]==content["FILES"][conversion]["MODIFIED"]:
+            os.system(conversions[conversion])
+            check_xtc=True
+        os.system(conversions[conversion])
+            
+        content["FILES_FOR_RELAXATION"][conversion]["NAME"]="non-Water_" + content["FILES"][conversion]["NAME"]
+    
+        file_adress = folder_path+"/"+content["FILES_FOR_RELAXATION"][conversion]["NAME"]
+        timepre=os.path.getmtime(file_adress)
+        file_mod = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timepre))
+        content["FILES_FOR_RELAXATION"][conversion]["SIZE"]=os.path.getsize(file_adress)/1000000
+        content["FILES_FOR_RELAXATION"][conversion]["MODIFIED"] = file_mod
+        content["FILES_FOR_RELAXATION"][conversion]["FROM_ORIG"] = content["FILES"][conversion]["MODIFIED"]
+    
+    check_xtc=True
+    if check_xtc:
+        mol = mda.Universe(folder_path+"/"+content["FILES_FOR_RELAXATION"]["gro"]["NAME"],
+                           folder_path+"/"+content["FILES_FOR_RELAXATION"]["xtc"]["NAME"])
+
+        Nframes=len(mol.trajectory)
+        timestep = mol.trajectory.dt
+        trj_length = Nframes * timestep
+        begin_time=mol.trajectory.time
+
+        content["FILES_FOR_RELAXATION"]["xtc"]['SAVING_FREQUENCY'] = timestep
+        content["FILES_FOR_RELAXATION"]['xtc']['LENGTH'] = trj_length
+        content["FILES_FOR_RELAXATION"]['xtc']['BEGIN'] = begin_time
+    
+    
+    with open(readme, 'w') as f:
+        yaml.dump(content,f, sort_keys=False)
+
+
+
+#added 18.10.2022s
+def plot_replicas(*replicas):
+    plt.rcParams["figure.figsize"] = [15.00, 12]
+    plt.rcParams["figure.autolayout"] = True
+
+    fig, (ax1, ax2, ax3) = plt.subplots(3)
+    
+    ax1.set_ylabel("T1 [s]")
+    ax1.set_xlabel("Residue")
+    ax2.set_ylabel("T2 [s]")
+    ax2.set_xlabel("Residue")
+    ax3.set_ylabel("hetNOE")
+    ax3.set_xlabel("Residue")
+    max_T1=0
+    max_T2=0
+    max_noe=0
+    min_noe=0
+    colors=["blue","red","green","gray","brown"]
+    
+    for j,replica in enumerate(replicas):
+        for i in replica:
+            ax1.plot(i,replica[i]["T1"],"o",color=colors[j])
+            max_T1=max(max_T1,replica[i]["T1"])
+
+            ax2.plot(i,replica[i]["T2"],"o",color=colors[j])
+            max_T2=max(max_T2,replica[i]["T2"])
+
+            ax3.plot(i,replica[i]["hetNOE"],"o",color=colors[j])
+            max_noe=max(max_noe,replica[i]["hetNOE"])
+            min_noe=min(min_noe,replica[i]["hetNOE"])
+
+        ax1.set_ylim([0,max_T1+0.1 ])
+        ax2.set_ylim([0,max_T2+0.1 ])
+        ax3.set_ylim([min_noe-0.1,max_noe+0.1 ])
+
+
+
+#added 29.9.2022
+def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,folder_path,nuclei,output_name):
+    aminoAcids={}
+    for j,file in enumerate(os.listdir(folder_path)):
+        x = re.findall("[0-9]", os.fsdecode(file))
+        AA_index=""
+        for i in x:
+            AA_index+=i
+        AA_index=int(AA_index)
+        input_corr_file = folder_path+os.fsdecode(file)
+        AA=GetRelaxationData(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_corr_file,nuclei,output_name+" "+str(AA_index))
+        aminoAcids[AA_index]=AA
+    return aminoAcids
 
 #addad 31.5.2022
 #executed if not imported
