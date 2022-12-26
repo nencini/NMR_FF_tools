@@ -644,7 +644,7 @@ def remove_water(folder_path,xtc=False):
             check_xtc=True
         os.system(conversions[conversion])
         
-     
+        print("name is: ",content["FILES"][conversion]["NAME"])
         if "non-Water_" not in content["FILES"][conversion]["NAME"]:
             content["FILES_FOR_RELAXATION"][conversion]["NAME"]="non-Water_" + content["FILES"][conversion]["NAME"]
         else:
