@@ -644,13 +644,16 @@ def remove_water(folder_path,xtc=False):
             check_xtc=True
         os.system(conversions[conversion])
         
-        if "non-Water_*" not in content["FILES"][conversion]["NAME"]:
+     
+        if "non-Water_" not in content["FILES"][conversion]["NAME"]:
             content["FILES_FOR_RELAXATION"][conversion]["NAME"]="non-Water_" + content["FILES"][conversion]["NAME"]
         else:
             content["FILES_FOR_RELAXATION"][conversion]["NAME"]= content["FILES"][conversion]["NAME"]
             content["FILES"][conversion]["NAME"] = "none"
             content["FILES"][conversion]["SIZE"] = "none"
             content["FILES"][conversion]["MODIFIED"] = "none"
+        
+
 
         file_adress = folder_path+"/"+content["FILES_FOR_RELAXATION"][conversion]["NAME"]
         timepre=os.path.getmtime(file_adress)
