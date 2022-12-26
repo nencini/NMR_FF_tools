@@ -75,7 +75,7 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,atom1,atom2,moleculeTy
         if end==-1:
             end=int(readme["FILES_FOR_RELAXATION"]["xtc"]["LENGTH"])
 
-        new_folder=readme["FILES"]["xtc"]["NAME"][:-4] + "_" + str(int(begin/1000)) + "_" + str(int(end/1000)) + "_" + str(atom1) + "_" + str(atom2)
+        new_folder=readme["FILES"]["tpr"]["NAME"][:-4] + "_" + str(int(begin/1000)) + "_" + str(int(end/1000)) + "_" + str(atom1) + "_" + str(atom2)
     else:
         new_folder="corr_func"+ "_"  +   grofile[:-4] + "_" + str(int(begin/1000)) + "_" + str(int(end/1000)) + "_" + str(atom1) + "_" + str(atom2)
         if end==-1:
@@ -643,7 +643,7 @@ def PlotTimescales(aminoAcids,merge,groupTimes,title="Title",xlabel="xlabel",yli
 #added 18.10.2022
 def remove_water(folder_path,xtc=False):
     
-    readme=folder_path+"README.yaml"
+    readme=folder_path+"/README.yaml"
     with open(readme) as yaml_file:
         content = yaml.load(yaml_file, Loader=yaml.FullLoader)
     
@@ -673,9 +673,15 @@ def remove_water(folder_path,xtc=False):
             os.system(conversions[conversion])
             check_xtc=True
         os.system(conversions[conversion])
-            
-        content["FILES_FOR_RELAXATION"][conversion]["NAME"]="non-Water_" + content["FILES"][conversion]["NAME"]
-    
+        
+        if "non-Water_*" not in content["FILES"][conversion]["NAME"]:
+            content["FILES_FOR_RELAXATION"][conversion]["NAME"]="non-Water_" + content["FILES"][conversion]["NAME"]
+        else:
+            content["FILES_FOR_RELAXATION"][conversion]["NAME"]= content["FILES"][conversion]["NAME"]
+            content["FILES"][conversion]["NAME"] = "none"
+            content["FILES"][conversion]["SIZE"] = "none"
+            content["FILES"][conversion]["MODIFIED"] = "none"
+
         file_adress = folder_path+"/"+content["FILES_FOR_RELAXATION"][conversion]["NAME"]
         timepre=os.path.getmtime(file_adress)
         file_mod = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timepre))
