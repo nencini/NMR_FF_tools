@@ -231,13 +231,14 @@ class GetRelaxationData():
         self.input_data=input_data
         self.nuclei=nuclei
         self.title=title
+        self.analyze=analyze
         
         self.org_corrF, self.times_out=self.read_data()
         
         #analyze only the part specified by the user
-        analyze_until = round(len(self.org_corrF)*analyze)
-        self.org_corrF=self.org_corrF[0:analyze_until]
-        self.times_out=self.times_out[0:analyze_until]
+        self.analyze_until = round(len(self.org_corrF)*analyze)
+        self.org_corrF=self.org_corrF[0:self.analyze_until]
+        self.times_out=self.times_out[0:self.analyze_until]
         
         Teff, tau_eff_area, self.T1, self.T2, self.NOE = self.calc_relax_time()
         
@@ -473,7 +474,8 @@ choose_nuclei = {
 
 
 #addad 29.9.2022
-def plot_T1_T2_noe(aminoAcids,output,plot_output):
+# 20.1.2023 removed saving of yaml
+def plot_T1_T2_noe(aminoAcids,plot_output):
     plt.rcParams["figure.figsize"] = [15.00, 12]
     plt.rcParams["figure.autolayout"] = True
 
@@ -492,15 +494,10 @@ def plot_T1_T2_noe(aminoAcids,output,plot_output):
     max_noe=0
     min_noe=0
     
-    relax_data={}
+    
     
     for i in range(len(aminoAcids)):
-    
-        relax_data[i]={}
-        relax_data[i]["T1"]=float(aminoAcids[i].T1)
-        relax_data[i]["T2"]=float(aminoAcids[i].T2)
-        relax_data[i]["hetNOE"]=float(aminoAcids[i].NOE)
-    
+       
         ax1.plot(i,aminoAcids[i].T1,"o",color="blue")
         max_T1=max(max_T1,aminoAcids[i].T1)
 
@@ -517,8 +514,7 @@ def plot_T1_T2_noe(aminoAcids,output,plot_output):
     plt.show()
     fig.savefig(plot_output)
 
-    with open(output, 'w') as f:
-        yaml.dump(relax_data,f, sort_keys=True)
+    
 
 #addad 29.9.2022
 def PlotTimescales(aminoAcids,merge,groupTimes,title="Title",xlabel="xlabel",ylim=None,ylim_weig=None,plot_output="weight.pdf"):
@@ -620,14 +616,23 @@ def remove_water(folder_path,xtc=False):
     
     if not "FILES_FOR_RELAXATION" in content:
         content["FILES_FOR_RELAXATION"]={}
-        
-    conversions={"xtc":"echo 'non-Water'",
+    
+    if  "non-Water_"  in content["FILES"]["xtc"]["NAME"]:
+        conversions={"xtc":"echo 'non-Water'",
           "tpr":"echo non-Water|gmx convert-tpr -s " + folder_path+"/"+content["FILES"]["tpr"]["NAME"] + " -o " 
                  + folder_path+"/non-Water_"+content["FILES"]["tpr"]["NAME"],
-          "gro":"echo System| gmx trjconv -f " + folder_path+"/non-Water_"+content["FILES"]["xtc"]["NAME"] + 
+          "gro":"echo System| gmx trjconv -f " + folder_path+"/"+content["FILES"]["xtc"]["NAME"] + 
                " -s " + folder_path+"/non-Water_"+content["FILES"]["tpr"]["NAME"] + " -b " + content["BINDINGEQ"] 
               + " -e " + content["BINDINGEQ"] 
                + " -pbc mol -o " + folder_path+ "/non-Water_" + content["FILES"]["gro"]["NAME"]}
+    else:
+        conversions={"xtc":"echo 'non-Water'",
+                          "tpr":"echo non-Water|gmx convert-tpr -s " + folder_path+"/"+content["FILES"]["tpr"]["NAME"] + " -o "
+                                + folder_path+"/non-Water_"+content["FILES"]["tpr"]["NAME"],
+                          "gro":"echo System| gmx trjconv -f " + folder_path+"/non-Water_"+content["FILES"]["xtc"]["NAME"] +      
+                                " -s " + folder_path+"/non-Water_"+content["FILES"]["tpr"]["NAME"] + " -b " + content["BINDINGEQ"]     
+                               + " -e " + content["BINDINGEQ"]
+                              + " -pbc mol -o " + folder_path+ "/non-Water_" + content["FILES"]["gro"]["NAME"]}
     if xtc:
         conversions["xtc"]=("echo 'non-Water| gmx trjconv -f " + folder_path+"/"+content["FILES"]["xtc"]["NAME"] + 
         " -s " + folder_path+"/"+content["FILES"]["tpr"]["NAME"] + " -b " + content["BINDINGEQ"] 
@@ -653,7 +658,7 @@ def remove_water(folder_path,xtc=False):
             content["FILES"][conversion]["SIZE"] = "none"
             content["FILES"][conversion]["MODIFIED"] = "none"
         
-
+        print("name is: ",content["FILES_FOR_RELAXATION"][conversion]["NAME"])
 
         file_adress = folder_path+"/"+content["FILES_FOR_RELAXATION"][conversion]["NAME"]
         timepre=os.path.getmtime(file_adress)
@@ -720,7 +725,8 @@ def plot_replicas(*replicas):
 
 
 #added 29.9.2022
-def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,folder_path,nuclei,output_name):
+# 20.1.2023 add saving of yaml, includes now info on how the data was analyzed
+def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,folder_path,nuclei,output_name,output_yaml):
     aminoAcids={}
     for j,file in enumerate(os.listdir(folder_path)):
         x = re.findall("[0-9]", os.fsdecode(file))
@@ -731,6 +737,35 @@ def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit
         input_corr_file = folder_path+os.fsdecode(file)
         AA=GetRelaxationData(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit,analyze,magnetic_field,input_corr_file,nuclei,output_name+" "+str(AA_index))
         aminoAcids[AA_index]=AA
+        
+    relax_data={}
+    relax_data["results"]={}
+    relax_data["info"]={}
+    relax_data["info"]["7_OP"]=OP
+    relax_data["info"]["4_smallest_corr_time_[s]"]=10**(int(smallest_corr_time)-12)
+    relax_data["info"]["5_biggest_corr_time_[s]"]=10**(int(biggest_corr_time)-12)
+    relax_data["info"]["3_N_exp_to_fit"]=N_exp_to_fit
+    relax_data["info"]["1_magnetic_field_[T]"]=magnetic_field
+    relax_data["info"]["2_magnetic_field_[MHz]"]=float(np.round(magnetic_field /(2*np.pi/gammaH*10**6),2))
+    relax_data["info"]["0_nuclei"]=nuclei
+    relax_data["info"]["8_simulation_length_[ps]"]=float(len(AA.org_corrF)*2*(AA.times_out[1]-AA.times_out[0]))/analyze
+    relax_data["info"]["9_saving_frequency_[ps]"]=float((AA.times_out[1]-AA.times_out[0]))
+    relax_data["info"]["6_analyze"]=analyze
+    
+
+    
+    for i in range(len(aminoAcids)):
+        relax_data["results"][i]={}
+        relax_data["results"][i]["T1"]=float(aminoAcids[i].T1)
+        relax_data["results"][i]["T2"]=float(aminoAcids[i].T2)
+        relax_data["results"][i]["hetNOE"]=float(aminoAcids[i].NOE)
+    
+        
+
+    with open(output_yaml, 'w') as f:
+        yaml.dump(relax_data,f, sort_keys=True)
+
+
     return aminoAcids
 
 #addad 31.5.2022
