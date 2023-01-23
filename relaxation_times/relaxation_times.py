@@ -733,6 +733,91 @@ def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit
         aminoAcids[AA_index]=AA
     return aminoAcids
 
+
+
+#added 12.1.2023
+
+class AverageCorrelFunction():
+    def __init__(self,name, output_path, *paths):
+        
+        
+        self.name=name
+        self.output_path=output_path
+        self.loaded_data={}
+        
+        self.get_average()
+        
+    def get_average(self):
+        
+        try:
+            os.system("mkdir "+self.output_path)
+        except:
+            pass
+        
+        mini=10**10
+        for i,repeat in enumerate(paths):
+            
+            self.input_data=repeat+self.name
+            org_corrF, times_out=self.read_data()
+            self.loaded_data[repeat]=[times_out,org_corrF]
+            if len(times_out)<mini:
+                minName=repeat
+            mini=min(mini,len(times_out))
+        
+        self.average=[]
+        a=len(self.loaded_data[minName][0])
+        for i in range(a):
+            av=[]
+            for repeat in paths:
+                av.append(self.loaded_data[repeat][1][i])
+            self.average.append(np.mean(av))
+        
+
+        
+        to_save=np.zeros([len(self.average),2])
+        for i in range(len(self.average)):
+            to_save[i,0]=self.loaded_data[minName][0][i]
+            to_save[i,1]=self.average[i]
+        
+        
+        np.savetxt(self.output_path+"/"+self.name,to_save)
+        
+
+    def read_data(self):
+        # for reading the correlation function data
+        opf = open(self.input_data, 'r')
+        lines = opf.readlines()
+        data_times = []
+        data_F = []
+        for line in lines:
+            if '#' in line:
+                continue
+            if '&' in line:
+                continue
+            if '@' in line:
+                continue    
+            if 'label' in line:
+                continue
+            if line == "":
+                continue
+            parts = line.split()
+            if np.shape(parts)[0]==2:
+                data_F.append(float(parts[1]))
+                data_times.append(float(parts[0]))
+
+
+        data_Fout = np.array(data_F)
+        times_out = np.array(data_times)
+        return data_Fout, times_out
+    
+    
+def Average_Correl_Function_All_residues(output_path, *paths):
+    for j,file in enumerate(os.listdir(paths[0])):
+        AverageCorrelFunction(file,output_path,*paths)
+        
+
+
+
 #addad 31.5.2022
 #executed if not imported
 
