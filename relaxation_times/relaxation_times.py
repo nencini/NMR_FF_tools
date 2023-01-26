@@ -752,7 +752,7 @@ def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit
     relax_data["info"]["9_saving_frequency_[ps]"]=float((AA.times_out[1]-AA.times_out[0]))
     relax_data["info"]["6_analyze"]=analyze
     
-
+   
     
     for i in range(len(aminoAcids)):
         relax_data["results"][i]={}
@@ -760,10 +760,24 @@ def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit
         relax_data["results"][i]["T2"]=float(aminoAcids[i].T2)
         relax_data["results"][i]["hetNOE"]=float(aminoAcids[i].NOE)
     
+    try:
+        with open(output_yaml) as yaml_file:
+            content = yaml.load(yaml_file, Loader=yaml.FullLoader)
         
+        done=False
+        for analysis in content:
+            if content[analysis]["info"]==relax_data["info"]:
+                content[analysis]["result"]=relax_data["results"]
+                done=True
+        if not done:
+            content["analysis"+str(len(content))]=relax_data
+    except:
+        content={}
+        content["analysis"+str(len(content))]=relax_data
+        pass         
 
     with open(output_yaml, 'w') as f:
-        yaml.dump(relax_data,f, sort_keys=True)
+        yaml.dump(content,f, sort_keys=True)
 
 
     return aminoAcids
