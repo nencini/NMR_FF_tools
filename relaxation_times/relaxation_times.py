@@ -713,40 +713,6 @@ choose_nuclei = {
 
 
 
-#added 18.10.2022s
-def plot_replicas(*replicas):
-    plt.rcParams["figure.figsize"] = [15.00, 12]
-    plt.rcParams["figure.autolayout"] = True
-
-    fig, (ax1, ax2, ax3) = plt.subplots(3)
-    
-    ax1.set_ylabel("T1 [s]")
-    ax1.set_xlabel("Residue")
-    ax2.set_ylabel("T2 [s]")
-    ax2.set_xlabel("Residue")
-    ax3.set_ylabel("hetNOE")
-    ax3.set_xlabel("Residue")
-    max_T1=0
-    max_T2=0
-    max_noe=0
-    min_noe=0
-    colors=["blue","red","green","gray","brown"]
-    
-    for j,replica in enumerate(replicas):
-        for i in replica:
-            ax1.plot(i,replica[i]["T1"],"o",color=colors[j])
-            max_T1=max(max_T1,replica[i]["T1"])
-
-            ax2.plot(i,replica[i]["T2"],"o",color=colors[j])
-            max_T2=max(max_T2,replica[i]["T2"])
-
-            ax3.plot(i,replica[i]["hetNOE"],"o",color=colors[j])
-            max_noe=max(max_noe,replica[i]["hetNOE"])
-            min_noe=min(min_noe,replica[i]["hetNOE"])
-
-        ax1.set_ylim([0,max_T1+0.1 ])
-        ax2.set_ylim([0,max_T2+0.1 ])
-        ax3.set_ylim([min_noe-0.1,max_noe+0.1 ])
 
 
 
