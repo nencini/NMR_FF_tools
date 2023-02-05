@@ -805,6 +805,7 @@ def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit
     
     if cr:
         relax_data["info"]["10_xtc"]=corr_readme["xtc"]
+        relax_data["info"]["11_xtc_modified"]=corr_readme["FROM_XTC"]
    
     timescales={}
     timescales["Coeff"]={}
