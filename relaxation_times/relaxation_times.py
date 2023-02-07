@@ -569,6 +569,7 @@ class GetRelaxationData():
         plt.ylabel("Autocorrelation function")
         lines=len(self.title)//40
         new_title=""
+        i=-1
         for i in range(lines):
             new_title+=self.title[i*40:(i+1)*40]+" \n "
         new_title+=self.title[(i+1)*40:]   
@@ -796,7 +797,7 @@ def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit
         done=False
         for analysis in content:
             if content[analysis]["info"]==relax_data["info"]:
-                content[analysis]["result"]=relax_data["results"]
+                content[analysis]["results"]=relax_data["results"]
                 done=True
         if not done:
             content["analysis"+str(len(content))]=relax_data

@@ -372,3 +372,113 @@ def PlotTimescales_replicas(merge,groupTimes,title="Title",xlabel="xlabel",ylim=
     
     plt.show()   
 
+
+
+def PlotTimescales_replicas2(merge,shift,title,xlabel,ylim,yscale,units,labels,*aminoAcidsReplicas):
+    plt.rcParams["figure.figsize"] = [15.00, 7]
+    plt.rcParams["figure.autolayout"] = True
+    plt.rcParams.update({'font.size': 20})
+
+    
+    
+    fig, (ax1) = plt.subplots(1)
+
+    ax1.title.set_text(title)
+    
+    uu=["[s]","[ms]","[us]","[ns]","[ps]","[fs]"]
+
+    unit=uu[int(np.log10(units)/3)]
+
+    
+    ax1.grid()
+    if yscale=="log":
+        ax1.set_yscale('log')
+    
+    ax1.set_ylabel("Timescale "+unit)
+    
+    max_len=0
+    for system in aminoAcidsReplicas:
+        max_len=max(max_len,len(system["results"]["Coeff"]))
+       
+
+    
+    ax1.set_xlim(0,max_len+int(max_len//4))
+    ax1.set_xlabel(xlabel)
+    
+    colors=["C0","C1","C2","C3","C4","C5","C6","C7","C8","C9"]
+    markers=["o","v","s","*","P","D","p","X"]
+    
+    nn=labels
+    for k,system in enumerate(aminoAcidsReplicas):
+        
+        biggest_corr_time=np.log10(system["info"]['05_biggest_corr_time_[s]'])+12
+        smallest_corr_time=np.log10(system["info"]['04_smallest_corr_time_[s]'])+12
+        N_exp_to_fit=system["info"]['03_N_exp_to_fit']
+
+        step_exp=(biggest_corr_time-smallest_corr_time)/N_exp_to_fit
+        Ctimes = 10 ** np.arange(smallest_corr_time, biggest_corr_time, step_exp)
+        Ctimes = Ctimes * 0.001 * 10 ** (-9);
+        Ctimes_list=[Ctimes]
+
+        for i in system["results"]["Coeff"]:
+            Ctimes_list.append(system["results"]["Coeff"][i])
+        
+            Ctimes=np.array(Ctimes_list)
+            Ctimes=np.transpose(Ctimes)
+        
+        ax1.set_ylim(Ctimes[0,0]/10,Ctimes[-1,0]*10)
+
+        working_Ctimes=np.copy(Ctimes)
+
+        if not ylim==None:
+            ax1.set_ylim(ylim[0],ylim[1]*units)
+            
+            
+
+        """Plot the timescales, user specifies the merge to be used.
+        The merge works as follow: The code finds the first timescale with
+        weight bigger bigger than 0 and merges with 'merge' subsequent timescales.
+        The final result is plotted as a weighted average of the merged points."""
+
+        
+        
+        for residue in range(1,working_Ctimes.shape[1]):
+            timescale=0
+            while timescale < working_Ctimes.shape[0]:
+                #print("{} {} \n".format(i, j))
+                if working_Ctimes[timescale,residue]>0:
+                    time_to_plot=working_Ctimes[timescale,0]
+                    total_weight=working_Ctimes[timescale,residue]
+                    if merge>1:
+                        time_to_plot=0
+                        total_weight=0
+                        for i in range(0,merge):
+                            try:
+                                time_to_plot+=working_Ctimes[timescale+i,0]*working_Ctimes[timescale+i,residue]
+                                total_weight+=working_Ctimes[timescale+i,residue]
+                            except:
+                                pass
+                        time_to_plot/=total_weight
+                    
+                    ms=int(np.round(total_weight*20,0))
+
+
+                    ax1.plot(residue+k*0.15*shift, time_to_plot*units, "o", markersize=ms, markeredgecolor=colors[k], markerfacecolor=colors[k])
+                    
+                    timescale+=merge-1
+                timescale+=1
+
+
+
+
+
+
+        
+       
+        ax1.plot(residue+k*0.15, 100, "o", markersize=20, color=colors[k], label=nn[k])
+        
+          
+    ax1.legend()
+      
+    plt.savefig("timescales_all_linear.pdf")
+    plt.show()
