@@ -374,7 +374,7 @@ def PlotTimescales_replicas(merge,groupTimes,title="Title",xlabel="xlabel",ylim=
 
 
 
-def PlotTimescales_replicas2(merge,shift,title,xlabel,ylim,yscale,units,labels,*aminoAcidsReplicas):
+def PlotTimescales_replicas2(merge,shift,title,xlabel,ylim,yscale,units,labels,plot_output,*aminoAcidsReplicas):
     plt.rcParams["figure.figsize"] = [15.00, 7]
     plt.rcParams["figure.autolayout"] = True
     plt.rcParams.update({'font.size': 20})
@@ -480,5 +480,5 @@ def PlotTimescales_replicas2(merge,shift,title,xlabel,ylim,yscale,units,labels,*
           
     ax1.legend()
       
-    plt.savefig("timescales_all_linear.pdf")
+    plt.savefig(plot_output)
     plt.show()
