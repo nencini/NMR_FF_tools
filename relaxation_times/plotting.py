@@ -426,7 +426,7 @@ def PlotTimescales_replicas2(merge,shift,title,xlabel,ylim,yscale,units,labels,p
             Ctimes=np.array(Ctimes_list)
             Ctimes=np.transpose(Ctimes)
         
-        ax1.set_ylim(Ctimes[0,0]/10,Ctimes[-1,0]*10)
+        ax1.set_ylim(Ctimes[0,0]/10*units,Ctimes[-1,0]*10*units)
 
         working_Ctimes=np.copy(Ctimes)
 
@@ -475,7 +475,7 @@ def PlotTimescales_replicas2(merge,shift,title,xlabel,ylim,yscale,units,labels,p
 
         
        
-        ax1.plot(residue+k*0.15, 100, "o", markersize=20, color=colors[k], label=nn[k])
+        ax1.plot(residue+k*0.15*0, 100**4, "o", markersize=20, color=colors[k], label=nn[k])
         
           
     ax1.legend()
