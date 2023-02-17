@@ -80,7 +80,7 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,atom1,atom2,moleculeTy
         if begin==-1:
             begin=int(readme["EQILIBRATED"])
 
-        new_folder=output_path+readme["FILES"]["xtc"]["NAME"][:-4] + "_" + str(atom1) + "_" + str(atom2)
+        new_folder=output_path+readme["FILES"]["tpr"]["NAME"][:-4] + "_" + str(atom1) + "_" + str(atom2)
     else:
         new_folder=output_path+"corr_func"+ "_"  +   grofile[:-4] + "_" + str(int(begin/1000)) + "_" + str(int(end/1000)) + "_" + str(atom1) + "_" + str(atom2)
         if end==-1:
@@ -94,6 +94,8 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,atom1,atom2,moleculeTy
     grofile=path+grofile
     xtcfile=path+xtcfile
     tprfile=path+tprfile
+    
+    correl={}
     
     ##### MAKE NDX FILE #####
     if RM_avail:
@@ -255,6 +257,8 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,atom1,atom2,moleculeTy
                 readme['ANALYSIS']['CORRELATION_FUNCTIONS'][moleculeType][anal_to_save]["LENGTH"]="Problem at "+str(last_frame)
             else:
                 readme['ANALYSIS']['CORRELATION_FUNCTIONS'][moleculeType]["help"][anal_to_save]["LENGTH"]="Problem at "+str(last_frame)                
+        else:
+            correl["LENGTH"]="Problem at "+str(last_frame)        
         try:
             os.system("rm corr.log")
         except:
@@ -262,13 +266,13 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,atom1,atom2,moleculeTy
         
         #directory = os.getcwd()
 
-        correl={}
+        
          
-            
+        today = str(date.today())    
         if RM_avail:
             #readme['ANALYSIS']['CORRELATION_FUNCTIONS'][moleculeType][anal_to_save]["PATH"]=output_path
 
-            today = str(date.today())
+            
             
             if moleculeType=="Protein":
                 readme['ANALYSIS']['CORRELATION_FUNCTIONS'][moleculeType][anal_to_save]["ANALYZED"]=today
@@ -286,21 +290,30 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,atom1,atom2,moleculeTy
                 yaml.dump(readme,f, sort_keys=False)
             
              
-        
+        if RM_avail:
+            correl["name"]=readme["FILES"]["tpr"]["NAME"][:-4]
+            correl["FROM_XTC"]=file_mod
+        else:
+            correl["name"]=xtc[:-4]
+            
+            
+            timepre=os.path.getmtime(xtcfile)
+            file_mod = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timepre))
+            correl["FROM_XTC"]=file_mod
         correl["xtc"]=xtc
         correl["tpr"]=tpr 
         correl["path"]=path
-        correl["FROM_XTC"]=file_mod
+        
         correl["BEGGIN"]=begin
         correl["END"]=end
-        if moleculeType=="Protein":
+        if moleculeType=="Protein" and RM_avail:
             correl["LENGTH"]=readme['ANALYSIS']['CORRELATION_FUNCTIONS'][moleculeType][anal_to_save]["LENGTH"]
             correl["BONDS"]={}
             
             for i in readme['ANALYSIS']['RELAXATION_TIMES'][moleculeType]:
                 correl["BONDS"][i]=readme['ANALYSIS']['RELAXATION_TIMES'][moleculeType][i]["RESIDUE"]
                 
-        else:
+        elif RM_avail:
             correl["LENGTH"]=readme['ANALYSIS']['CORRELATION_FUNCTIONS'][moleculeType]["help"][anal_to_save]["LENGTH"]
         correl["atom1"]=atom1
         correl["atom2"]=atom2
@@ -407,7 +420,8 @@ def CorrelationFunctionsLipids(parent_folder_path,begin,end,RM_avail,moleculeTyp
 
                                     with open(correl_path+"/README_correl.yaml") as yaml_file:
                                         old_readme = yaml.load(yaml_file, Loader=yaml.FullLoader)
-
+                                    
+                                    new_readme["name"]=old_readme["name"]
                                     new_readme["xtc"]=old_readme["xtc"]
                                     new_readme["path"]=old_readme["path"]
                                     new_readme["xtc_MODIFIED"]=old_readme["FROM_XTC"]
@@ -477,7 +491,7 @@ class GetRelaxationData():
         lines = opf.readlines()
         data_times = []
         data_F = []
-        for line in lines:
+        for i,line in enumerate(lines):
             if '#' in line:
                 continue
             if '&' in line:
@@ -490,9 +504,12 @@ class GetRelaxationData():
                 continue
             parts = line.split()
             if np.shape(parts)[0]==2:
-                data_F.append(float(parts[1]))
-                data_times.append(float(parts[0]))
-
+                try:
+                    data_F.append(float(parts[1]))
+                    data_times.append(float(parts[0]))
+                except:
+                    print(i)
+                    break
 
         data_Fout = np.array(data_F)
         times_out = np.array(data_times)
@@ -731,7 +748,7 @@ def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit
     
     
     if cr and output_name==None:
-        output_name=corr_readme["xtc"][:-4]
+        output_name=corr_readme["name"]
     
     for file in os.listdir(folder_path):
         if "README" not in os.fsdecode(file):
@@ -773,6 +790,7 @@ def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit
     if cr:
         relax_data["info"]["10_xtc"]=corr_readme["xtc"]
         relax_data["info"]["11_xtc_modified"]=corr_readme["FROM_XTC"]
+        relax_data["info"]["12_naame"]=corr_readme["name"]
    
     timescales={}
     timescales["Coeff"]={}

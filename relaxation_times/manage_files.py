@@ -176,7 +176,7 @@ def check_for_latest_files(folder_path,readme):
         for file in os.listdir(folder_path):
             if fnmatch.fnmatch(os.fsdecode(file), "*."+fileU):
                 file_adress = folder_path+os.fsdecode(file)
-                if not "NAME" in sim["FILES"][fileU]: 
+                if not "NAME" in sim["FILES"][fileU] or sim["FILES"][fileU]["NAME"] == "none": 
                     sim["FILES"][fileU]["NAME"] = os.fsdecode(file)
                 timepre=os.path.getmtime(file_adress)
                 file_mod = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timepre))
@@ -207,15 +207,16 @@ def check_for_latest_files(folder_path,readme):
             pass
     
     try:
-        mol = mda.Universe(folder_path+sim["FILES"]["gro"]["NAME"],folder_path+sim["FILES"]["xtc"]["NAME"])
-        Nframes=len(mol.trajectory)
-        timestep = mol.trajectory.dt
-        trj_length = Nframes * timestep
-        begin_time=mol.trajectory.time
+        if not sim["FILES"]["xtc"]["NAME"]=="none":
+            mol = mda.Universe(folder_path+sim["FILES"]["gro"]["NAME"],folder_path+sim["FILES"]["xtc"]["NAME"])
+            Nframes=len(mol.trajectory)
+            timestep = mol.trajectory.dt
+            trj_length = Nframes * timestep
+            begin_time=mol.trajectory.time
         
-        sim["FILES"]["xtc"]['SAVING_FREQUENCY'] = timestep
-        sim["FILES"]['xtc']['LENGTH'] = trj_length
-        sim["FILES"]['xtc']['BEGIN'] = begin_time
+            sim["FILES"]["xtc"]['SAVING_FREQUENCY'] = timestep
+            sim["FILES"]['xtc']['LENGTH'] = trj_length
+            sim["FILES"]['xtc']['BEGIN'] = begin_time
 
     except Exception as e: 
         print(e)
@@ -332,13 +333,26 @@ def remove_water(folder_path,save_part,xtc=False):
             
             
         
-
-            file_adress = folder_path+"/"+content["FILES_FOR_RELAXATION"][conversion]["NAME"]
-            timepre=os.path.getmtime(file_adress)
-            file_mod = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timepre))
-            content["FILES_FOR_RELAXATION"][conversion]["SIZE"]=os.path.getsize(file_adress)/1000000
-            content["FILES_FOR_RELAXATION"][conversion]["MODIFIED"] = file_mod
-            content["FILES_FOR_RELAXATION"][conversion]["FROM_ORIG"] = content["FILES"][conversion]["MODIFIED"]
+            try:
+                file_adress = folder_path+"/"+content["FILES_FOR_RELAXATION"][conversion]["NAME"]
+                timepre=os.path.getmtime(file_adress)
+                file_mod = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timepre))
+                content["FILES_FOR_RELAXATION"][conversion]["SIZE"]=os.path.getsize(file_adress)/1000000
+                content["FILES_FOR_RELAXATION"][conversion]["MODIFIED"] = file_mod
+                content["FILES_FOR_RELAXATION"][conversion]["FROM_ORIG"] = content["FILES"][conversion]["MODIFIED"]
+            except:
+                if conversion=="tpr":
+                    os.system("echo "+save_part+"|gmx convert-tpr -s " + folder_path+"/"+content["FILES"]["tpr"]["NAME"] + " -o " 
+                                + folder_path+"/"+save_part+"_"+content["FILES"]["tpr"]["NAME"]+" -n "
+                                + folder_path+"/"+content["FILES"]["ndx"]["NAME"])
+                    file_adress = folder_path+"/"+content["FILES_FOR_RELAXATION"][conversion]["NAME"]
+                    timepre=os.path.getmtime(file_adress)
+                    file_mod = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timepre))
+                    content["FILES_FOR_RELAXATION"][conversion]["SIZE"]=os.path.getsize(file_adress)/1000000
+                    content["FILES_FOR_RELAXATION"][conversion]["MODIFIED"] = file_mod
+                    content["FILES_FOR_RELAXATION"][conversion]["FROM_ORIG"] = content["FILES"][conversion]["MODIFIED"]
+                    
+                
     
     check_xtc=True
     if check_xtc:
