@@ -386,7 +386,7 @@ def CorrelationFunctionsLipids(parent_folder_path,begin,end,RM_avail,moleculeTyp
                  
                     
                     if (readme_new["xtc"]==folder_path+readme["FILES_FOR_RELAXATION"]["xtc"]["NAME"]
-                        and readme_new["xtc_MODIFIED"]==readme["FILES_FOR_RELAXATION"]["xtc"]["MODIFIED"]
+                        and readme_new["FROM_XTC"]==readme["FILES_FOR_RELAXATION"]["xtc"]["MODIFIED"]
                         and readme_new["tpr"]==folder_path+readme["FILES_FOR_RELAXATION"]["tpr"]["NAME"]
                         and readme_new["BEGGIN"]==b and readme_new["END"]==e and readme_new["PROBLEMS"]==None):
                         run_again=False
@@ -410,9 +410,10 @@ def CorrelationFunctionsLipids(parent_folder_path,begin,end,RM_avail,moleculeTyp
                     new_readme["BONDS"]={}
                     all_OK=True
                     for i,file2 in enumerate(os.listdir(output_path)):
+                        #print(main_name)
                         correl_path=output_path+os.fsdecode(file2)+"/"
                         if main_name in os.fsdecode(file2) and main_name!=os.fsdecode(file2):
-
+                            #print(os.fsdecode(file2))
                             for k,bond in enumerate(CH_bonds):
                                 bond_name=bond[0]+"_"+bond[1]
                                 if bond_name in os.fsdecode(file2):
@@ -424,7 +425,7 @@ def CorrelationFunctionsLipids(parent_folder_path,begin,end,RM_avail,moleculeTyp
                                     new_readme["name"]=old_readme["name"]
                                     new_readme["xtc"]=old_readme["xtc"]
                                     new_readme["path"]=old_readme["path"]
-                                    new_readme["xtc_MODIFIED"]=old_readme["FROM_XTC"]
+                                    new_readme["FROM_XTC"]=old_readme["FROM_XTC"]
                                     new_readme["tpr"]=old_readme["tpr"]
                                     new_readme["BEGGIN"]=old_readme["BEGGIN"]
                                     new_readme["END"]=old_readme["END"]
@@ -788,9 +789,22 @@ def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit
     relax_data["info"]["06_analyze"]=analyze
     
     if cr:
-        relax_data["info"]["10_xtc"]=corr_readme["xtc"]
-        relax_data["info"]["11_xtc_modified"]=corr_readme["FROM_XTC"]
-        relax_data["info"]["12_naame"]=corr_readme["name"]
+        relax_data["info"]["10_xtc"]=[]
+        relax_data["info"]["11_xtc_modified"]=[]
+        relax_data["info"]["12_naame"]=[]
+        if "replica0" in corr_readme:
+            for key in corr_readme:
+                if "replica" in key:
+                    try:
+                        relax_data["info"]["10_xtc"].append(corr_readme[key]["xtc"])
+                        relax_data["info"]["11_xtc_modified"].append(corr_readme[key]["FROM_XTC"])
+                        relax_data["info"]["12_naame"].append(corr_readme[key]["name"])
+                    except:
+                        pass
+        else:
+            relax_data["info"]["10_xtc"]=corr_readme["xtc"]
+            relax_data["info"]["11_xtc_modified"]=corr_readme["FROM_XTC"]
+            relax_data["info"]["12_naame"]=corr_readme["name"]
    
     timescales={}
     timescales["Coeff"]={}
