@@ -383,13 +383,15 @@ def what_analysis_done(system):
 
     for i,analysis in enumerate(system):
         for inf in system[analysis]["info"]:
-            if inf not in gather_info:
-                gather_info[inf]={}
-            if system[analysis]["info"][inf] in gather_info[inf]:
-                gather_info[inf][system[analysis]["info"][inf]].append(analysis)
-            else:
-                gather_info[inf][system[analysis]["info"][inf]]=[analysis]
-
+            try:
+                if inf not in gather_info:
+                    gather_info[inf]={}
+                if system[analysis]["info"][inf] in gather_info[inf]:
+                    gather_info[inf][system[analysis]["info"][inf]].append(analysis)
+                else:
+                    gather_info[inf][system[analysis]["info"][inf]]=[analysis]
+            except:
+                pass
 
 
     for inf in gather_info:
