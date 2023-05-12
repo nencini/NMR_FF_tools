@@ -22,7 +22,7 @@ def go_through_simulation(folder_path):
        "xtc","edr","tpr","top","mdp","ndx","gro","cpt","log" files,
        their size od date of modification
               
-    2) if "gro" not available but "xtc", "tpr" exist and compatible,
+    2) if "gro" not available but "xtc", "tpr" exist and compatible,go
        script dumps "gro" file
        
     3) extracts length and saving frequency of the simulation
@@ -316,7 +316,8 @@ def remove_water(folder_path,save_part,xtc=False):
                 content["FILES_FOR_RELAXATION"][conversion]={}
                 os.system(conversions[conversion])
                 check_xtc=True
-            elif not content["FILES_FOR_RELAXATION"][conversion]["FROM_ORIG"]==content["FILES"][conversion]["MODIFIED"]:
+            elif not content["FILES_FOR_RELAXATION"][conversion]["FROM_ORIG"]==content["FILES"][conversion]["MODIFIED"] and conversion=="xtc":
+                print("Tuleeko tassa ongelmia?",conversion)
                 os.system(conversions[conversion])
                 check_xtc=True
             #os.system(conversions[conversion])

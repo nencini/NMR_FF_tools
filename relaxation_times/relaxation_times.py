@@ -368,7 +368,7 @@ def CorrelationFunctionsLipids(parent_folder_path,begin,end,RM_avail,moleculeTyp
                     readme = yaml.load(yaml_file, Loader=yaml.FullLoader)
                 
                 run_again=True
-                main_name=readme["FILES"]["xtc"]["NAME"][:-4]
+                main_name=readme["FILES"]["tpr"]["NAME"][:-4]
                 if os.path.isfile(output_path+main_name+"/README_correl.yaml"):
                     
                     if end==-1:
@@ -395,8 +395,12 @@ def CorrelationFunctionsLipids(parent_folder_path,begin,end,RM_avail,moleculeTyp
                 if run_again:
                     for atom1, atom2 in CH_bonds:
                         CalculateCorrelationFunctions(folder_path,begin,end,RM_avail,atom1,atom2,moleculeType,output_path)
+                        print(atom1,atom2)
 
 
+                    readmeS = folder_path+ "/README.yaml"
+                    with open(readmeS) as yaml_file:
+                        readme = yaml.load(yaml_file, Loader=yaml.FullLoader)
                     
 
                     try:
@@ -410,6 +414,7 @@ def CorrelationFunctionsLipids(parent_folder_path,begin,end,RM_avail,moleculeTyp
                     new_readme["BONDS"]={}
                     all_OK=True
                     for i,file2 in enumerate(os.listdir(output_path)):
+                        #print(file2,os.fsdecode(file2))
                         #print(main_name)
                         correl_path=output_path+os.fsdecode(file2)+"/"
                         if main_name in os.fsdecode(file2) and main_name!=os.fsdecode(file2):
