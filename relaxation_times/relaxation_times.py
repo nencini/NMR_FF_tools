@@ -230,7 +230,7 @@ def CalculateCorrelationFunctions(path,begin,end,RM_avail,atom1,atom2,moleculeTy
             if RM_avail:
                 if not last_frame==last_frame_should:
                     all_alright=False
-            print(" last frame",last_frame)
+                print(" last frame",last_frame)
             
             if RM_avail:
                 if moleculeType=="Protein":
