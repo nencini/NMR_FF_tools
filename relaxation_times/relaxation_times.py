@@ -813,7 +813,7 @@ def analyze_all_in_folder(OP,smallest_corr_time, biggest_corr_time, N_exp_to_fit
    
     timescales={}
     timescales["Coeff"]={}
-    for i in range(len(aminoAcids)):
+    for i in aminoAcids:
         relax_data["results"][i]={}
         relax_data["results"][i]["T1"]=float(aminoAcids[i].T1)
         relax_data["results"][i]["T2"]=float(aminoAcids[i].T2)
